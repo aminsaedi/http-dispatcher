@@ -1,0 +1,184 @@
+import asyncio
+import socket
+import platform
+import httpx
+import json
+from typing import List, Optional
+from datetime import datetime
+import websockets
+import logging
+from src.models import HTTPRequestConfig, RequestResult, AgentRegistration, AgentHeartbeat
+
+logger = logging.getLogger(__name__)
+
+
+class Agent:
+    def __init__(self, agent_id: str, coordinator_url: str):
+        self.agent_id = agent_id
+        self.coordinator_url = coordinator_url
+        self.hostname = platform.node()
+        self.request_config: Optional[HTTPRequestConfig] = None
+        self.ws_connection = None
+        self.running = False
+        
+    def get_ipv6_addresses(self) -> List[str]:
+        ipv6_addresses = []
+        try:
+            for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET6):
+                ip = info[4][0]
+                if not ip.startswith('fe80:') and not ip.startswith('::1'):
+                    ipv6_addresses.append(ip)
+        except Exception as e:
+            logger.error(f"Error getting IPv6 addresses: {e}")
+        
+        if not ipv6_addresses:
+            ipv6_addresses = ["::1"]
+        
+        return ipv6_addresses
+    
+    async def register_with_coordinator(self):
+        registration = AgentRegistration(
+            agent_id=self.agent_id,
+            hostname=self.hostname,
+            ipv6_addresses=self.get_ipv6_addresses()
+        )
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.coordinator_url}/api/agents/register",
+                    json=registration.model_dump()
+                )
+                if response.status_code == 200:
+                    logger.info(f"Successfully registered with coordinator")
+                    return True
+                else:
+                    logger.error(f"Failed to register: {response.text}")
+                    return False
+        except Exception as e:
+            logger.error(f"Error registering with coordinator: {e}")
+            return False
+    
+    async def execute_request(self, source_ip: str) -> RequestResult:
+        if not self.request_config:
+            return RequestResult(
+                success=False,
+                error="No request configuration available"
+            )
+        
+        try:
+            transport = httpx.AsyncHTTPTransport(local_address=source_ip)
+            async with httpx.AsyncClient(transport=transport) as client:
+                response = await client.request(
+                    method=self.request_config.method,
+                    url=self.request_config.url,
+                    headers=self.request_config.headers,
+                    params=self.request_config.params,
+                    json=self.request_config.body if self.request_config.body else None,
+                    timeout=self.request_config.timeout
+                )
+                
+                return RequestResult(
+                    success=True,
+                    status_code=response.status_code,
+                    headers=dict(response.headers),
+                    body=response.text,
+                    metadata={
+                        "agent_id": self.agent_id,
+                        "source_ip": source_ip,
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                )
+        except Exception as e:
+            return RequestResult(
+                success=False,
+                error=str(e),
+                metadata={
+                    "agent_id": self.agent_id,
+                    "source_ip": source_ip,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            )
+    
+    async def handle_message(self, message: str):
+        try:
+            data = json.loads(message)
+            command = data.get("command")
+            
+            if command == "configure_request":
+                self.request_config = HTTPRequestConfig(**data.get("config", {}))
+                logger.info("Request configuration updated")
+                return {"status": "success", "message": "Configuration updated"}
+            
+            elif command == "execute_request":
+                source_ip = data.get("source_ip")
+                result = await self.execute_request(source_ip)
+                return result.model_dump()
+            
+            elif command == "ping":
+                return {"status": "pong", "agent_id": self.agent_id}
+            
+            else:
+                return {"status": "error", "message": f"Unknown command: {command}"}
+                
+        except Exception as e:
+            logger.error(f"Error handling message: {e}")
+            return {"status": "error", "message": str(e)}
+    
+    async def send_heartbeat(self):
+        heartbeat = AgentHeartbeat(
+            agent_id=self.agent_id,
+            ipv6_addresses=self.get_ipv6_addresses(),
+            status="active"
+        )
+        
+        if self.ws_connection:
+            try:
+                await self.ws_connection.send(json.dumps({
+                    "type": "heartbeat",
+                    "data": heartbeat.model_dump()
+                }))
+            except Exception as e:
+                logger.error(f"Error sending heartbeat: {e}")
+    
+    async def websocket_handler(self):
+        ws_url = self.coordinator_url.replace("http://", "ws://").replace("https://", "wss://")
+        ws_url = f"{ws_url}/ws/agent/{self.agent_id}"
+        
+        while self.running:
+            try:
+                async with websockets.connect(ws_url) as websocket:
+                    self.ws_connection = websocket
+                    logger.info(f"Connected to coordinator via WebSocket")
+                    
+                    heartbeat_task = asyncio.create_task(self.heartbeat_loop())
+                    
+                    try:
+                        async for message in websocket:
+                            response = await self.handle_message(message)
+                            await websocket.send(json.dumps(response))
+                    finally:
+                        heartbeat_task.cancel()
+                        
+            except Exception as e:
+                logger.error(f"WebSocket connection error: {e}")
+                await asyncio.sleep(5)
+    
+    async def heartbeat_loop(self):
+        while self.running:
+            await self.send_heartbeat()
+            await asyncio.sleep(30)
+    
+    async def run(self):
+        self.running = True
+        logger.info(f"Starting agent {self.agent_id}")
+        
+        if await self.register_with_coordinator():
+            await self.websocket_handler()
+        else:
+            logger.error("Failed to register with coordinator")
+    
+    async def stop(self):
+        self.running = False
+        if self.ws_connection:
+            await self.ws_connection.close()
