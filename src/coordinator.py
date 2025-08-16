@@ -229,23 +229,23 @@ class Coordinator:
             )
             response = json.loads(response_text)
             
-            selected_ip.last_used = datetime.utcnow()
-            selected_ip.requests_count += 1
+            # Extract the actual source IP used by the agent from the response metadata
+            actual_source_ip = response.get("metadata", {}).get("source_ip", selected_ip.ip)
+            
+            # Update the IP status with the actual IP used
+            for ip in self.ip_pool:
+                if ip.ip == actual_source_ip and ip.agent_id == agent_id:
+                    ip.last_used = datetime.utcnow()
+                    ip.requests_count += 1
+                    break
             
             if agent_id in self.agents:
                 self.agents[agent_id].requests_processed += 1
             
-            result = {
-                "result": response,
-                "metadata": {
-                    "agent_id": agent_id,
-                    "source_ip": selected_ip.ip,
-                    "timestamp": datetime.utcnow().isoformat()
-                }
-            }
-            
-            self.request_history.append(result)
-            return result
+            # Return the agent's response directly without wrapping it
+            # The agent already includes all necessary metadata
+            self.request_history.append(response)
+            return response
             
         except asyncio.TimeoutError:
             raise HTTPException(status_code=504, detail="Request timeout")

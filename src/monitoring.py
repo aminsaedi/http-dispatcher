@@ -198,10 +198,18 @@ class MonitoringApp(App):
         
         self.history_table.clear()
         for item in self.history_data:
-            metadata = item.get("metadata", {})
-            result = item.get("result", {})
+            # Handle both old format (nested) and new format (flat)
+            if "result" in item:
+                # Old format with nested result
+                metadata = item.get("metadata", {})
+                result = item.get("result", {})
+            else:
+                # New format - flat structure
+                metadata = item.get("metadata", {})
+                result = item
+            
             self.history_table.add_row(
-                metadata.get("timestamp", ""),
+                metadata.get("timestamp", "")[:19] if metadata.get("timestamp") else "",
                 metadata.get("agent_id", ""),
                 metadata.get("source_ip", ""),
                 "Success" if result.get("success") else "Failed",
@@ -267,10 +275,14 @@ class MonitoringApp(App):
                     result = response.json()
                     self.last_result = result
                     
+                    # Handle both old format (nested) and new format (flat)
+                    metadata = result.get('metadata', {})
+                    status_code = result.get('status_code', 'N/A')
+                    
                     result_text = f"Success!\n"
-                    result_text += f"Agent: {result['metadata']['agent_id']}\n"
-                    result_text += f"Source IP: {result['metadata']['source_ip']}\n"
-                    result_text += f"Status Code: {result['result'].get('status_code', 'N/A')}\n"
+                    result_text += f"Agent: {metadata.get('agent_id', 'N/A')}\n"
+                    result_text += f"Source IP: {metadata.get('source_ip', 'N/A')}\n"
+                    result_text += f"Status Code: {status_code}\n"
                     
                     self.execute_result.update(result_text)
                     self.result_widget.update(json.dumps(result, indent=2))
