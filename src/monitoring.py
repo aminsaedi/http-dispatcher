@@ -70,6 +70,7 @@ class MonitoringApp(App):
         self.agents_data: List[Dict] = []
         self.pool_status: Dict = {}
         self.stats: Dict = {}
+        self.history_data: List[Dict] = []
         self.last_result: Optional[Dict] = None
         self.refresh_task = None
     
@@ -95,13 +96,11 @@ class MonitoringApp(App):
                         yield self.result_widget
             
             with TabPane("Agents", id="agents"):
-                self.agents_table = DataTable()
-                self.agents_table.add_columns("Agent ID", "Hostname", "IPv6 Count", "Status", "Requests", "Last Seen")
+                self.agents_table = DataTable(show_header=True, zebra_stripes=True)
                 yield self.agents_table
             
             with TabPane("IP Pool", id="pool"):
-                self.pool_table = DataTable()
-                self.pool_table.add_columns("IP Address", "Agent ID", "Status", "Requests", "Last Used")
+                self.pool_table = DataTable(show_header=True, zebra_stripes=True)
                 yield self.pool_table
             
             with TabPane("Configuration", id="config"):
@@ -134,11 +133,15 @@ class MonitoringApp(App):
                     yield self.execute_result
             
             with TabPane("History", id="history"):
-                self.history_table = DataTable()
-                self.history_table.add_columns("Timestamp", "Agent", "IP", "Status", "Status Code")
+                self.history_table = DataTable(show_header=True, zebra_stripes=True)
                 yield self.history_table
     
     async def on_mount(self) -> None:
+        # Initialize table columns after mounting
+        self.agents_table.add_columns("Agent ID", "Hostname", "IPv6 Count", "Status", "Requests", "Last Seen")
+        self.pool_table.add_columns("IP Address", "Agent ID", "Status", "Requests", "Last Used")
+        self.history_table.add_columns("Timestamp", "Agent", "IP", "Status", "Status Code")
+        
         self.refresh_task = self.set_interval(5, self.action_refresh)
         self.action_refresh()
     
