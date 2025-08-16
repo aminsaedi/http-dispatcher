@@ -286,7 +286,7 @@ class MonitoringApp(App):
         self.run_worker(self.refresh_data())
     
     def action_execute_request(self) -> None:
-        self.run_worker(self.execute_request())
+        self.execute_request()
     
     def action_configure(self) -> None:
         self.query_one(TabbedContent).active = "config"
