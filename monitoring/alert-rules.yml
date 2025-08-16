@@ -1,0 +1,62 @@
+groups:
+  - name: http-dispatcher-alerts
+    rules:
+      # High error rate alert
+      - alert: HighErrorRate
+        expr: (sum(rate(http_dispatcher_request_errors_total[5m])) / sum(rate(http_dispatcher_requests_total[5m]))) * 100 > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HTTP Dispatcher high error rate"
+          description: "Error rate is {{ $value }}% over the last 5 minutes"
+
+      # No agents connected
+      - alert: NoAgentsConnected
+        expr: http_dispatcher_agents_connected == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No agents connected to HTTP Dispatcher"
+          description: "HTTP Dispatcher has no connected agents for {{ $for }}"
+
+      # Low IP pool availability
+      - alert: LowIPPoolAvailability
+        expr: (http_dispatcher_ip_pool_available / http_dispatcher_ip_pool_size) * 100 < 20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low IP pool availability"
+          description: "Only {{ $value }}% of IPs are available in the pool"
+
+      # High response time
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, sum(rate(http_dispatcher_request_duration_seconds_bucket[5m])) by (le)) > 10
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time"
+          description: "95th percentile response time is {{ $value }}s"
+
+      # Agent disconnected
+      - alert: AgentDisconnected
+        expr: increase(http_dispatcher_agents_connected[1m]) < 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Agent disconnected"
+          description: "An agent has disconnected from the coordinator"
+
+      # Request timeout rate
+      - alert: HighTimeoutRate
+        expr: sum(rate(http_dispatcher_request_errors_total{error_type="timeout"}[5m])) > 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High request timeout rate"
+          description: "{{ $value }} requests per second are timing out"

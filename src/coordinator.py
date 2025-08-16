@@ -28,6 +28,7 @@ class Coordinator:
         self.round_robin_index = 0
         self.request_history = deque(maxlen=1000)
         self.app = FastAPI(title="HTTP Dispatcher Coordinator")
+        self.start_time = datetime.utcnow()
         
         # Prometheus metrics
         self.setup_metrics()
@@ -37,13 +38,17 @@ class Coordinator:
         # Define Prometheus metrics
         self.metrics = {
             'requests_total': Counter('http_dispatcher_requests_total', 'Total number of requests executed', ['agent_id', 'status_code', 'method']),
-            'requests_duration': Histogram('http_dispatcher_request_duration_seconds', 'Request duration in seconds', ['agent_id', 'method']),
+            'requests_duration': Histogram('http_dispatcher_request_duration_seconds', 'Request duration in seconds', ['agent_id', 'method'], buckets=[0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0]),
             'agents_connected': Gauge('http_dispatcher_agents_connected', 'Number of connected agents'),
             'agents_total': Gauge('http_dispatcher_agents_total', 'Total number of registered agents'),
             'ip_pool_size': Gauge('http_dispatcher_ip_pool_size', 'Size of the IP pool'),
             'ip_pool_available': Gauge('http_dispatcher_ip_pool_available', 'Number of available IPs in pool'),
             'websocket_connections': Gauge('http_dispatcher_websocket_connections', 'Number of active WebSocket connections'),
             'request_errors': Counter('http_dispatcher_request_errors_total', 'Total number of request errors', ['agent_id', 'error_type']),
+            'agent_requests': Counter('http_dispatcher_agent_requests_total', 'Total requests per agent', ['agent_id']),
+            'response_size_bytes': Histogram('http_dispatcher_response_size_bytes', 'Response size in bytes', ['agent_id'], buckets=[100, 1000, 10000, 100000, 1000000]),
+            'queue_depth': Gauge('http_dispatcher_queue_depth', 'Number of pending requests in queue', ['agent_id']),
+            'uptime_seconds': Gauge('http_dispatcher_uptime_seconds', 'Coordinator uptime in seconds'),
         }
     
     def setup_routes(self):
@@ -202,6 +207,14 @@ class Coordinator:
         self.metrics['ip_pool_size'].set(len(self.ip_pool))
         self.metrics['ip_pool_available'].set(available_ips)
         self.metrics['websocket_connections'].set(len(self.agent_connections))
+        
+        # Update uptime
+        uptime = (datetime.utcnow() - self.start_time).total_seconds()
+        self.metrics['uptime_seconds'].set(uptime)
+        
+        # Update queue depths
+        for agent_id, queue in self.agent_response_queues.items():
+            self.metrics['queue_depth'].labels(agent_id=agent_id).set(queue.qsize())
     
     async def handle_agent_message(self, agent_id: str, message: str):
         try:
@@ -305,6 +318,13 @@ class Coordinator:
                 agent_id=agent_id, 
                 method=method
             ).observe(duration)
+            self.metrics['agent_requests'].labels(agent_id=agent_id).inc()
+            
+            # Track response size
+            response_body = response.get("body", "")
+            if response_body:
+                response_size = len(str(response_body).encode('utf-8'))
+                self.metrics['response_size_bytes'].labels(agent_id=agent_id).observe(response_size)
             
             # Track errors if request failed
             if not response.get("success", False):

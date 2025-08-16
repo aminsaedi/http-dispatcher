@@ -145,6 +145,10 @@ HTTP Dispatcher provides comprehensive monitoring through Prometheus metrics and
 - `http_dispatcher_ip_pool_available` - Available IPs in pool
 - `http_dispatcher_websocket_connections` - Active WebSocket connections
 - `http_dispatcher_request_errors_total` - Request errors (by agent, error type)
+- `http_dispatcher_agent_requests_total` - Total requests per agent
+- `http_dispatcher_response_size_bytes` - Response size histogram (by agent)
+- `http_dispatcher_queue_depth` - Pending requests in queue (by agent)
+- `http_dispatcher_uptime_seconds` - Coordinator uptime
 
 ### Quick Start Monitoring
 
@@ -161,17 +165,39 @@ HTTP Dispatcher provides comprehensive monitoring through Prometheus metrics and
 3. **Access dashboards:**
    - Grafana: http://localhost:3000 (admin/admin)
    - Prometheus: http://localhost:9090
+   - Alertmanager: http://localhost:9093
    - Metrics endpoint: http://localhost:8000/metrics
 
 ### Dashboard Features
 
-The Grafana dashboard includes:
-- **Real-time agent status** - Connected vs total agents
-- **IP pool monitoring** - Total and available IP addresses
-- **Request rate graphs** - Requests per second by agent and method
-- **Request duration** - Response time percentiles (50th, 95th)
-- **Error tracking** - Error rates and types
-- **System stats** - Total requests, active agents
+The production Grafana dashboard includes:
+
+**System Overview:**
+- Active agents, available IPs, total request rate, success rate
+- P95 latency, total requests, error rate, WebSocket connections
+
+**Request Metrics:**
+- Request rate by agent with aggregated totals
+- Status code breakdown (2xx, 4xx, 5xx)
+- Response time percentiles (50th, 95th, 99th)
+- Error rates by agent and error type
+
+**Agent Performance:**
+- Performance comparison table (rate, duration, success rate)
+- Request distribution by HTTP method
+- Total requests by agent (pie chart)
+
+**System Health:**
+- Agent and WebSocket connection status
+- IP pool utilization over time
+- Request volume trends (1h increases)
+
+**Alerting:**
+- High error rate (>5%)
+- No agents connected
+- Low IP pool availability (<20%)
+- High response times (>10s)
+- Request timeouts
 
 ## API Usage Examples
 
