@@ -37,7 +37,8 @@ logger = logging.getLogger(__name__)
 @click.option('--agent-id', default=None, help='Agent ID (auto-generated if not provided)')
 @click.option('--host', default='0.0.0.0', help='Host to bind the coordinator to')
 @click.option('--port', default=8000, type=int, help='Port to bind the coordinator to')
-def main(mode, coordinator_url, agent_id, host, port):
+@click.option('--bind', multiple=True, help='Additional bind addresses in format host:port (can be used multiple times)')
+def main(mode, coordinator_url, agent_id, host, port, bind):
     """HTTP Dispatcher - Distributed HTTP request system with IPv6 support"""
     
     # Setup logging based on mode
@@ -47,21 +48,31 @@ def main(mode, coordinator_url, agent_id, host, port):
         logger.info("Starting Coordinator mode")
         coordinator = Coordinator()
         
-        async def start_coordinator():
-            cleanup_task = asyncio.create_task(coordinator.cleanup_inactive_agents())
-            try:
-                config = uvicorn.Config(
-                    app=coordinator.get_app(),
-                    host=host,
-                    port=port,
-                    log_level=settings.log_level.lower()
-                )
-                server = uvicorn.Server(config)
-                await server.serve()
-            finally:
-                cleanup_task.cancel()
+        # Build list of bind addresses
+        bind_addresses = [(host, port)]  # Always include the default host:port
         
-        asyncio.run(start_coordinator())
+        # Parse additional bind addresses
+        for bind_addr in bind:
+            try:
+                if ':' in bind_addr:
+                    bind_host, bind_port = bind_addr.rsplit(':', 1)
+                    bind_addresses.append((bind_host, int(bind_port)))
+                else:
+                    # If no port specified, use the same port as default
+                    bind_addresses.append((bind_addr, port))
+            except ValueError as e:
+                logger.error(f"Invalid bind address '{bind_addr}': {e}")
+                sys.exit(1)
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_bind_addresses = []
+        for addr in bind_addresses:
+            if addr not in seen:
+                seen.add(addr)
+                unique_bind_addresses.append(addr)
+        
+        asyncio.run(coordinator.start_servers(unique_bind_addresses))
     
     elif mode == 'agent':
         if not agent_id:

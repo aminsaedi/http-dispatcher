@@ -6,12 +6,14 @@ A distributed HTTP request system with IPv6 support, featuring agent-based reque
 
 - **Agent Mode**: Outbound gateway nodes that execute HTTP requests using specific IPv6 addresses
 - **Coordinator Mode**: Central server managing agents, request configuration, and load balancing
+- **Multiple Bind Addresses**: Coordinator can bind to multiple IP addresses and ports simultaneously
 - **Monitoring Mode**: Terminal UI for system management and monitoring
 - **IPv6 Support**: Automatic detection and utilization of IPv6 addresses
 - **Round-Robin Load Balancing**: Distributes requests across available IPs
 - **REST API**: Full API for system management and request execution
 - **WebSocket Communication**: Real-time agent-coordinator communication
 - **Request History**: Tracks all executed requests with metadata
+- **Agent Reconnection**: Automatic reconnection with exponential backoff when coordinator restarts
 
 ## Installation
 
@@ -24,7 +26,14 @@ pip install -r requirements.txt
 ### Start the Coordinator
 
 ```bash
+# Single bind address
 python main.py --mode coordinator --host 0.0.0.0 --port 8000
+
+# Multiple bind addresses
+python main.py --mode coordinator --host 0.0.0.0 --port 8000 \
+  --bind 192.168.1.100:8000 \
+  --bind [::1]:8001 \
+  --bind 10.0.0.50
 ```
 
 ### Start an Agent
@@ -84,6 +93,36 @@ You can configure the application using environment variables with the `DISPATCH
 3. **Monitoring** provides a real-time view of the system state and allows manual control
 4. Requests are executed by agents using specific source IPv6 addresses
 5. All communication is asynchronous for optimal performance
+
+## Multiple Bind Addresses
+
+The coordinator can bind to multiple network interfaces simultaneously:
+
+```bash
+# Bind to multiple specific IPs
+python main.py --mode coordinator \
+  --host 0.0.0.0 --port 8000 \
+  --bind 192.168.1.100:8000 \
+  --bind 10.0.0.50:8001
+
+# Mix IPv4 and IPv6
+python main.py --mode coordinator \
+  --host 0.0.0.0 --port 8000 \
+  --bind [::1]:8000 \
+  --bind 127.0.0.1:8001
+
+# Same IP, different ports
+python main.py --mode coordinator \
+  --bind 0.0.0.0:8000 \
+  --bind 0.0.0.0:8001 \
+  --bind 0.0.0.0:8002
+```
+
+**Use cases:**
+- Multi-homed servers with multiple network interfaces
+- Load balancing across different network segments
+- IPv4/IPv6 dual-stack deployments
+- Development/testing with multiple local addresses
 
 ## API Usage Examples
 

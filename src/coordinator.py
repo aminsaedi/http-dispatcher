@@ -1,6 +1,7 @@
 import asyncio
 import json
-from typing import Dict, List, Optional
+import uvicorn
+from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import JSONResponse
@@ -262,3 +263,42 @@ class Coordinator:
     
     def get_app(self):
         return self.app
+    
+    async def start_servers(self, bind_addresses: List[Tuple[str, int]]):
+        """Start multiple uvicorn servers on different bind addresses"""
+        if not bind_addresses:
+            raise ValueError("At least one bind address must be provided")
+        
+        logger.info(f"Starting coordinator on {len(bind_addresses)} bind addresses: {bind_addresses}")
+        
+        # Create cleanup task
+        cleanup_task = asyncio.create_task(self.cleanup_inactive_agents())
+        
+        # Create server tasks for each bind address
+        server_tasks = []
+        servers = []
+        
+        for host, port in bind_addresses:
+            config = uvicorn.Config(
+                app=self.get_app(),
+                host=host,
+                port=port,
+                log_level="warning"  # Reduce uvicorn noise
+            )
+            server = uvicorn.Server(config)
+            servers.append(server)
+            server_task = asyncio.create_task(server.serve())
+            server_tasks.append(server_task)
+            logger.info(f"Started server on {host}:{port}")
+        
+        try:
+            # Wait for all servers to complete
+            await asyncio.gather(*server_tasks)
+        except Exception as e:
+            logger.error(f"Error in server tasks: {e}")
+        finally:
+            # Cleanup
+            cleanup_task.cancel()
+            for server in servers:
+                if hasattr(server, 'should_exit'):
+                    server.should_exit = True
