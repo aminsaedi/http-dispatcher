@@ -133,10 +133,9 @@ class MonitoringApp(App):
                 yield self.history_table
     
     async def on_mount(self) -> None:
-        self.refresh_task = self.set_interval(5, self.refresh_data)
-        await self.refresh_data()
+        self.refresh_task = self.set_interval(5, self.action_refresh)
+        self.action_refresh()
     
-    @work
     async def refresh_data(self) -> None:
         try:
             async with httpx.AsyncClient() as client:
@@ -201,11 +200,11 @@ class MonitoringApp(App):
     
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save-config":
-            await self.save_configuration()
+            self.save_configuration()
         elif event.button.id == "load-config":
-            await self.load_configuration()
+            self.load_configuration()
         elif event.button.id == "execute-btn":
-            await self.execute_request()
+            self.execute_request()
     
     @work
     async def save_configuration(self) -> None:
