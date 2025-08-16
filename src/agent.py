@@ -227,23 +227,37 @@ class Agent:
         try:
             data = json.loads(message)
             command = data.get("command")
+            request_id = data.get("request_id")
+            logger.debug(f"Agent {self.agent_id} received command: {command} (request_id: {request_id})")
             
             if command == "configure_request":
                 self.request_config = HTTPRequestConfig(**data.get("config", {}))
                 logger.info("Request configuration updated")
-                return {"status": "success", "message": "Configuration updated"}
+                response = {"status": "success", "message": "Configuration updated"}
+                if request_id:
+                    response["request_id"] = request_id
+                return response
             
             elif command == "execute_request":
                 source_ip = data.get("source_ip")
                 config = data.get("config")  # New: support custom config per request
                 result = await self.execute_request(source_ip, config)
-                return result.model_dump()
+                result_dict = result.model_dump()
+                if request_id:
+                    result_dict["request_id"] = request_id
+                return result_dict
             
             elif command == "ping":
-                return {"status": "pong", "agent_id": self.agent_id}
+                response = {"status": "pong", "agent_id": self.agent_id}
+                if request_id:
+                    response["request_id"] = request_id
+                return response
             
             else:
-                return {"status": "error", "message": f"Unknown command: {command}"}
+                response = {"status": "error", "message": f"Unknown command: {command}"}
+                if request_id:
+                    response["request_id"] = request_id
+                return response
                 
         except Exception as e:
             logger.error(f"Error handling message: {e}")

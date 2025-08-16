@@ -1,5 +1,6 @@
 import asyncio
 import json
+import uuid
 import uvicorn
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
@@ -20,6 +21,7 @@ class Coordinator:
         self.agents: Dict[str, AgentInfo] = {}
         self.agent_connections: Dict[str, WebSocket] = {}
         self.agent_response_queues: Dict[str, asyncio.Queue] = {}
+        self.pending_requests: Dict[str, asyncio.Future] = {}  # Track pending requests by ID
         self.ip_pool: List[IPStatus] = []
         self.request_config: Optional[HTTPRequestConfig] = None
         self.round_robin_index = 0
@@ -61,8 +63,17 @@ class Coordinator:
                         if msg.get("type") == "heartbeat":
                             await self.handle_agent_message(agent_id, data)
                         else:
-                            # This is a response to a command, put it in the queue
-                            await self.agent_response_queues[agent_id].put(data)
+                            # Check if this is a response to a pending request
+                            request_id = msg.get("request_id")
+                            if request_id and request_id in self.pending_requests:
+                                # This is a response to a specific request
+                                future = self.pending_requests[request_id]
+                                if not future.done():
+                                    future.set_result(data)
+                                del self.pending_requests[request_id]
+                            else:
+                                # Fallback: put it in the queue as before
+                                await self.agent_response_queues[agent_id].put(data)
                     except json.JSONDecodeError:
                         # If it's not JSON, put it in the queue as a response
                         await self.agent_response_queues[agent_id].put(data)
@@ -211,22 +222,34 @@ class Coordinator:
         if not hasattr(self, 'agent_response_queues') or agent_id not in self.agent_response_queues:
             raise HTTPException(status_code=503, detail=f"Agent {agent_id} response queue not initialized")
         
+        # Generate unique request ID to match request with response
+        request_id = str(uuid.uuid4())
+        
         message = json.dumps({
             "command": "execute_request",
+            "request_id": request_id,
             "source_ip": selected_ip.ip,
             "config": execute_config.model_dump()
         })
         
         try:
             ws = self.agent_connections[agent_id]
+            
+            # Create a future for this specific request
+            future = asyncio.Future()
+            self.pending_requests[request_id] = future
+            
             await ws.send_text(message)
             
-            # Wait for response from the queue instead of directly from WebSocket
-            response_text = await asyncio.wait_for(
-                self.agent_response_queues[agent_id].get(), 
-                timeout=35.0
-            )
-            response = json.loads(response_text)
+            # Wait for the specific response using the future
+            try:
+                response_text = await asyncio.wait_for(future, timeout=35.0)
+                response = json.loads(response_text)
+            except asyncio.TimeoutError:
+                # Clean up the pending request on timeout
+                if request_id in self.pending_requests:
+                    del self.pending_requests[request_id]
+                raise
             
             # Extract the actual source IP used by the agent from the response metadata
             actual_source_ip = response.get("metadata", {}).get("source_ip", selected_ip.ip)
