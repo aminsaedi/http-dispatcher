@@ -19,7 +19,7 @@ groups:
           severity: critical
         annotations:
           summary: "No agents connected to HTTP Dispatcher"
-          description: "HTTP Dispatcher has no connected agents for {{ $for }}"
+          description: "HTTP Dispatcher has no connected agents for more than 1 minute"
 
       # Low IP pool availability
       - alert: LowIPPoolAvailability
