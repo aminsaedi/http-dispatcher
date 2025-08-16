@@ -43,8 +43,20 @@ class MonitoringApp(App):
         margin: 1;
     }
     
+    ScrollableContainer {
+        height: 100%;
+        width: 100%;
+    }
+    
     DataTable {
         height: 100%;
+        width: 100%;
+        min-height: 10;
+    }
+    
+    TabPane {
+        height: 100%;
+        width: 100%;
     }
     
     .config-input {
@@ -96,12 +108,14 @@ class MonitoringApp(App):
                         yield self.result_widget
             
             with TabPane("Agents", id="agents"):
-                self.agents_table = DataTable(show_header=True, zebra_stripes=True)
-                yield self.agents_table
+                with ScrollableContainer():
+                    self.agents_table = DataTable(show_header=True, zebra_stripes=True, cursor_type="row")
+                    yield self.agents_table
             
             with TabPane("IP Pool", id="pool"):
-                self.pool_table = DataTable(show_header=True, zebra_stripes=True)
-                yield self.pool_table
+                with ScrollableContainer():
+                    self.pool_table = DataTable(show_header=True, zebra_stripes=True, cursor_type="row")
+                    yield self.pool_table
             
             with TabPane("Configuration", id="config"):
                 with Vertical():
@@ -133,8 +147,9 @@ class MonitoringApp(App):
                     yield self.execute_result
             
             with TabPane("History", id="history"):
-                self.history_table = DataTable(show_header=True, zebra_stripes=True)
-                yield self.history_table
+                with ScrollableContainer():
+                    self.history_table = DataTable(show_header=True, zebra_stripes=True, cursor_type="row")
+                    yield self.history_table
     
     async def on_mount(self) -> None:
         # Initialize table columns after mounting
@@ -165,47 +180,60 @@ class MonitoringApp(App):
             self.status_widget.update(f"Error: {e}")
     
     def update_display(self):
-        status_text = f"Active Agents: {self.pool_status.get('active_agents', 0)}\n"
-        status_text += f"Total IPs: {self.pool_status.get('total_ips', 0)}\n"
-        self.status_widget.update(status_text)
-        
-        stats_text = f"Total Agents: {self.stats.get('total_agents', 0)}\n"
-        stats_text += f"Active Agents: {self.stats.get('active_agents', 0)}\n"
-        stats_text += f"Total Requests: {self.stats.get('total_requests_processed', 0)}\n"
-        self.stats_widget.update(stats_text)
-        
-        self.agents_table.clear()
-        for agent in self.agents_data:
-            self.agents_table.add_row(
-                agent.get("agent_id", ""),
-                agent.get("hostname", ""),
-                str(len(agent.get("ipv6_addresses", []))),
-                agent.get("status", ""),
-                str(agent.get("requests_processed", 0)),
-                agent.get("last_seen", "")
-            )
-        
-        self.pool_table.clear()
-        for ip in self.pool_status.get("ip_pool", []):
-            self.pool_table.add_row(
-                ip.get("ip", ""),
-                ip.get("agent_id", ""),
-                ip.get("status", ""),
-                str(ip.get("requests_count", 0)),
-                ip.get("last_used", "N/A") or "N/A"
-            )
-        
-        self.history_table.clear()
-        for item in self.history_data:
-            metadata = item.get("metadata", {})
-            result = item.get("result", {})
-            self.history_table.add_row(
-                metadata.get("timestamp", ""),
-                metadata.get("agent_id", ""),
-                metadata.get("source_ip", ""),
-                "Success" if result.get("success") else "Failed",
-                str(result.get("status_code", "N/A"))
-            )
+        try:
+            status_text = f"Active Agents: {self.pool_status.get('active_agents', 0)}\n"
+            status_text += f"Total IPs: {self.pool_status.get('total_ips', 0)}\n"
+            self.status_widget.update(status_text)
+            
+            stats_text = f"Total Agents: {self.stats.get('total_agents', 0)}\n"
+            stats_text += f"Active Agents: {self.stats.get('active_agents', 0)}\n"
+            stats_text += f"Total Requests: {self.stats.get('total_requests_processed', 0)}\n"
+            self.stats_widget.update(stats_text)
+            
+            # Update agents table
+            if self.agents_table:
+                self.agents_table.clear()
+                if self.agents_data:
+                    for agent in self.agents_data:
+                        self.agents_table.add_row(
+                            agent.get("agent_id", ""),
+                            agent.get("hostname", ""),
+                            str(len(agent.get("ipv6_addresses", []))),
+                            agent.get("status", ""),
+                            str(agent.get("requests_processed", 0)),
+                            agent.get("last_seen", "")[:19] if agent.get("last_seen") else ""
+                        )
+            
+            # Update pool table
+            if self.pool_table:
+                self.pool_table.clear()
+                ip_pool = self.pool_status.get("ip_pool", [])
+                if ip_pool:
+                    for ip in ip_pool:
+                        self.pool_table.add_row(
+                            ip.get("ip", ""),
+                            ip.get("agent_id", ""),
+                            ip.get("status", ""),
+                            str(ip.get("requests_count", 0)),
+                            ip.get("last_used", "N/A")[:19] if ip.get("last_used") else "N/A"
+                        )
+            
+            # Update history table
+            if self.history_table:
+                self.history_table.clear()
+                if self.history_data:
+                    for item in self.history_data:
+                        metadata = item.get("metadata", {})
+                        result = item.get("result", {})
+                        self.history_table.add_row(
+                            metadata.get("timestamp", "")[:19] if metadata.get("timestamp") else "",
+                            metadata.get("agent_id", ""),
+                            metadata.get("source_ip", ""),
+                            "Success" if result.get("success") else "Failed",
+                            str(result.get("status_code", "N/A"))
+                        )
+        except Exception as e:
+            self.notify(f"Error updating display: {e}", severity="error")
     
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save-config":
