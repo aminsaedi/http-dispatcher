@@ -18,6 +18,7 @@ class Coordinator:
     def __init__(self):
         self.agents: Dict[str, AgentInfo] = {}
         self.agent_connections: Dict[str, WebSocket] = {}
+        self.agent_response_queues: Dict[str, asyncio.Queue] = {}
         self.ip_pool: List[IPStatus] = []
         self.request_config: Optional[HTTPRequestConfig] = None
         self.round_robin_index = 0
@@ -47,13 +48,29 @@ class Coordinator:
             await websocket.accept()
             self.agent_connections[agent_id] = websocket
             
+            # Create a queue for pending responses for this agent
+            self.agent_response_queues[agent_id] = asyncio.Queue()
+            
             try:
                 while True:
                     data = await websocket.receive_text()
-                    await self.handle_agent_message(agent_id, data)
+                    # Check if this is a response to a request
+                    try:
+                        msg = json.loads(data)
+                        if msg.get("type") == "heartbeat":
+                            await self.handle_agent_message(agent_id, data)
+                        else:
+                            # This is a response to a command, put it in the queue
+                            await self.agent_response_queues[agent_id].put(data)
+                    except json.JSONDecodeError:
+                        # If it's not JSON, put it in the queue as a response
+                        await self.agent_response_queues[agent_id].put(data)
             except WebSocketDisconnect:
                 logger.info(f"Agent {agent_id} disconnected")
-                del self.agent_connections[agent_id]
+                if agent_id in self.agent_connections:
+                    del self.agent_connections[agent_id]
+                if agent_id in self.agent_response_queues:
+                    del self.agent_response_queues[agent_id]
                 if agent_id in self.agents:
                     self.agents[agent_id].status = "disconnected"
         
@@ -193,6 +210,9 @@ class Coordinator:
             selected_ip.status = "unavailable"
             raise HTTPException(status_code=503, detail=f"Agent {agent_id} is not connected")
         
+        if not hasattr(self, 'agent_response_queues') or agent_id not in self.agent_response_queues:
+            raise HTTPException(status_code=503, detail=f"Agent {agent_id} response queue not initialized")
+        
         message = json.dumps({
             "command": "execute_request",
             "source_ip": selected_ip.ip
@@ -202,7 +222,11 @@ class Coordinator:
             ws = self.agent_connections[agent_id]
             await ws.send_text(message)
             
-            response_text = await asyncio.wait_for(ws.receive_text(), timeout=35.0)
+            # Wait for response from the queue instead of directly from WebSocket
+            response_text = await asyncio.wait_for(
+                self.agent_response_queues[agent_id].get(), 
+                timeout=35.0
+            )
             response = json.loads(response_text)
             
             selected_ip.last_used = datetime.utcnow()
