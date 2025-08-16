@@ -98,7 +98,7 @@ class Coordinator:
                 raise HTTPException(status_code=404, detail="No request configuration available")
             return self.request_config.model_dump()
         
-        @self.app.post("/api/execute")
+        @self.app.get("/api/execute")
         async def execute_request():
             if not self.request_config:
                 raise HTTPException(status_code=400, detail="No request configuration available")

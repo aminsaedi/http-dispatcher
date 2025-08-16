@@ -53,7 +53,7 @@ python main.py --mode monitoring --coordinator-url http://localhost:8000
 - `GET /api/config/request` - Get current request configuration
 
 ### Request Execution
-- `POST /api/execute` - Execute the configured request using round-robin
+- `GET /api/execute` - Execute the configured request using round-robin
 
 ### Monitoring
 - `GET /api/pool/status` - Get IP pool status

@@ -261,7 +261,7 @@ class MonitoringApp(App):
     async def execute_request(self) -> None:
         try:
             async with httpx.AsyncClient() as client:
-                response = await client.post(f"{self.coordinator_url}/api/execute")
+                response = await client.get(f"{self.coordinator_url}/api/execute")
                 
                 if response.status_code == 200:
                     result = response.json()
