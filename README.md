@@ -53,7 +53,7 @@ python main.py --mode monitoring --coordinator-url http://localhost:8000
 - `GET /api/config/request` - Get current request configuration
 
 ### Request Execution
-- `GET /api/execute` - Execute the configured request using round-robin
+- `POST /api/execute` - Execute a custom HTTP request using round-robin
 
 ### Monitoring
 - `GET /api/pool/status` - Get IP pool status
@@ -85,7 +85,63 @@ You can configure the application using environment variables with the `DISPATCH
 4. Requests are executed by agents using specific source IPv6 addresses
 5. All communication is asynchronous for optimal performance
 
-## Example Request Configuration
+## API Usage Examples
+
+### Execute Custom Request
+
+The execute endpoint accepts a POST request with custom configuration:
+
+```bash
+# Simple GET request
+curl -X POST http://localhost:8000/api/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://api.github.com/user",
+    "method": "GET",
+    "headers": {
+      "User-Agent": "HTTP-Dispatcher",
+      "Accept": "application/json"
+    },
+    "timeout": 30.0
+  }'
+
+# POST request with payload
+curl -X POST http://localhost:8000/api/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://api.example.com/data",
+    "method": "POST",
+    "headers": {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer your-token"
+    },
+    "body": {
+      "message": "Hello from HTTP Dispatcher",
+      "timestamp": "2024-01-01T00:00:00Z"
+    },
+    "timeout": 45.0
+  }'
+
+# PUT request with custom headers
+curl -X POST http://localhost:8000/api/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://api.example.com/users/123",
+    "method": "PUT",
+    "headers": {
+      "Content-Type": "application/json",
+      "X-API-Key": "your-api-key"
+    },
+    "body": {
+      "name": "Updated Name",
+      "email": "new@example.com"
+    }
+  }'
+```
+
+### Request Configuration (Legacy)
+
+You can still configure a default request that gets stored on the server:
 
 ```json
 {

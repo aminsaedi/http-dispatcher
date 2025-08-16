@@ -112,6 +112,10 @@ class MonitoringApp(App):
                     self.headers_input = Input(placeholder='{"User-Agent": "HTTP-Dispatcher"}', classes="config-input")
                     yield self.headers_input
                     
+                    yield Label("Body/Payload (JSON):")
+                    self.body_input = Input(placeholder='{"key": "value"}', classes="config-input")
+                    yield self.body_input
+                    
                     yield Label("Timeout (seconds):")
                     self.timeout_input = Input(value="30", classes="config-input")
                     yield self.timeout_input
@@ -223,6 +227,7 @@ class MonitoringApp(App):
                 "url": self.url_input.value,
                 "method": self.method_input.value,
                 "headers": json.loads(self.headers_input.value or "{}"),
+                "body": json.loads(self.body_input.value or "null"),
                 "timeout": float(self.timeout_input.value or "30")
             }
             
@@ -250,6 +255,8 @@ class MonitoringApp(App):
                     self.url_input.value = config.get("url", "")
                     self.method_input.value = config.get("method", "GET")
                     self.headers_input.value = json.dumps(config.get("headers", {}))
+                    body = config.get("body")
+                    self.body_input.value = json.dumps(body) if body is not None else ""
                     self.timeout_input.value = str(config.get("timeout", 30))
                     self.notify("Configuration loaded", severity="information")
                 else:
@@ -260,8 +267,16 @@ class MonitoringApp(App):
     @work
     async def execute_request(self) -> None:
         try:
+            config = {
+                "url": self.url_input.value,
+                "method": self.method_input.value,
+                "headers": json.loads(self.headers_input.value or "{}"),
+                "body": json.loads(self.body_input.value or "null"),
+                "timeout": float(self.timeout_input.value or "30")
+            }
+            
             async with httpx.AsyncClient() as client:
-                response = await client.get(f"{self.coordinator_url}/api/execute")
+                response = await client.post(f"{self.coordinator_url}/api/execute", json=config)
                 
                 if response.status_code == 200:
                     result = response.json()

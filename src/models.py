@@ -57,3 +57,12 @@ class AgentHeartbeat(BaseModel):
     agent_id: str
     ipv6_addresses: List[str]
     status: str = "active"
+
+
+class ExecuteRequest(BaseModel):
+    url: str
+    method: HTTPMethod = HTTPMethod.GET
+    headers: Dict[str, str] = Field(default_factory=dict)
+    params: Optional[Dict[str, str]] = None
+    body: Optional[Any] = None
+    timeout: float = 30.0

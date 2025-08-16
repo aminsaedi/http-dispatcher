@@ -8,7 +8,7 @@ import logging
 from collections import deque
 from src.models import (
     AgentInfo, HTTPRequestConfig, RequestResult, 
-    AgentRegistration, IPStatus
+    AgentRegistration, IPStatus, ExecuteRequest
 )
 
 logger = logging.getLogger(__name__)
@@ -98,15 +98,12 @@ class Coordinator:
                 raise HTTPException(status_code=404, detail="No request configuration available")
             return self.request_config.model_dump()
         
-        @self.app.get("/api/execute")
-        async def execute_request():
-            if not self.request_config:
-                raise HTTPException(status_code=400, detail="No request configuration available")
-            
+        @self.app.post("/api/execute")
+        async def execute_request(execute_config: ExecuteRequest):
             if not self.ip_pool:
                 raise HTTPException(status_code=400, detail="No IP addresses available in pool")
             
-            result = await self.execute_with_round_robin()
+            result = await self.execute_with_round_robin(execute_config)
             return result
         
         @self.app.get("/api/history")
@@ -194,7 +191,7 @@ class Coordinator:
             if agent_id in self.agents:
                 self.agents[agent_id].status = "disconnected"
     
-    async def execute_with_round_robin(self) -> Dict:
+    async def execute_with_round_robin(self, execute_config: ExecuteRequest) -> Dict:
         available_ips = [ip for ip in self.ip_pool if ip.status == "available"]
         
         if not available_ips:
@@ -215,7 +212,8 @@ class Coordinator:
         
         message = json.dumps({
             "command": "execute_request",
-            "source_ip": selected_ip.ip
+            "source_ip": selected_ip.ip,
+            "config": execute_config.model_dump()
         })
         
         try:
