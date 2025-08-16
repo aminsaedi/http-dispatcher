@@ -24,17 +24,64 @@ class Agent:
     def get_ipv6_addresses(self) -> List[str]:
         ipv6_addresses = []
         try:
-            for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET6):
-                ip = info[4][0]
-                if not ip.startswith('fe80:') and not ip.startswith('::1'):
-                    ipv6_addresses.append(ip)
+            # Method 1: Try using netifaces if available
+            try:
+                import netifaces
+                for interface in netifaces.interfaces():
+                    addrs = netifaces.ifaddresses(interface)
+                    if netifaces.AF_INET6 in addrs:
+                        for addr_info in addrs[netifaces.AF_INET6]:
+                            ip = addr_info['addr'].split('%')[0]  # Remove scope id if present
+                            if not ip.startswith('fe80:') and not ip.startswith('::1'):
+                                ipv6_addresses.append(ip)
+            except ImportError:
+                # Method 2: Try using ip command (Linux)
+                import subprocess
+                try:
+                    result = subprocess.run(['ip', '-6', 'addr', 'show'], 
+                                         capture_output=True, text=True, timeout=5)
+                    if result.returncode == 0:
+                        import re
+                        # Parse IPv6 addresses from ip command output
+                        pattern = r'inet6\s+([0-9a-fA-F:]+)/\d+'
+                        matches = re.findall(pattern, result.stdout)
+                        for ip in matches:
+                            if not ip.startswith('fe80') and not ip.startswith('::1'):
+                                ipv6_addresses.append(ip)
+                except (subprocess.SubprocessError, FileNotFoundError):
+                    # Method 3: Fall back to socket method but with better handling
+                    try:
+                        # Try to get all addresses by connecting to an external host
+                        with socket.socket(socket.AF_INET6, socket.SOCK_DGRAM) as s:
+                            # Use Google's public DNS IPv6
+                            s.connect(('2001:4860:4860::8888', 80))
+                            local_ip = s.getsockname()[0]
+                            if local_ip and not local_ip.startswith('fe80') and not local_ip.startswith('::1'):
+                                ipv6_addresses.append(local_ip)
+                    except:
+                        # Last resort: try hostname resolution
+                        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET6):
+                            ip = info[4][0]
+                            if not ip.startswith('fe80:') and not ip.startswith('::1'):
+                                ipv6_addresses.append(ip)
         except Exception as e:
             logger.error(f"Error getting IPv6 addresses: {e}")
         
-        if not ipv6_addresses:
-            ipv6_addresses = ["::1"]
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_addresses = []
+        for ip in ipv6_addresses:
+            if ip not in seen:
+                seen.add(ip)
+                unique_addresses.append(ip)
         
-        return ipv6_addresses
+        if not unique_addresses:
+            logger.warning("No IPv6 addresses found, using ::1 as fallback")
+            unique_addresses = ["::1"]
+        else:
+            logger.info(f"Found IPv6 addresses: {unique_addresses}")
+        
+        return unique_addresses
     
     async def register_with_coordinator(self):
         registration = AgentRegistration(
