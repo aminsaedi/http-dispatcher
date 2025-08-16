@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 @click.command()
 @click.option('--mode', type=click.Choice(['agent', 'coordinator', 'monitoring']), 
-              default='coordinator', help='Mode to run the application in')
+              default='coordinator', help='Mode to run the application in (monitoring mode deprecated)')
 @click.option('--coordinator-url', default='http://localhost:8000', 
               help='URL of the coordinator (for agent and monitoring modes)')
 @click.option('--agent-id', default=None, help='Agent ID (auto-generated if not provided)')
@@ -88,7 +88,8 @@ def main(mode, coordinator_url, agent_id, host, port, bind):
             asyncio.run(agent.stop())
     
     elif mode == 'monitoring':
-        logger.info("Starting Monitoring mode")
+        logger.warning("⚠️  Monitoring mode is deprecated! Use Docker Compose with Grafana instead.")
+        logger.info("Starting legacy Monitoring mode")
         app = MonitoringApp(coordinator_url)
         app.run()
 

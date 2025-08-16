@@ -7,7 +7,7 @@ A distributed HTTP request system with IPv6 support, featuring agent-based reque
 - **Agent Mode**: Outbound gateway nodes that execute HTTP requests using specific IPv6 addresses
 - **Coordinator Mode**: Central server managing agents, request configuration, and load balancing
 - **Multiple Bind Addresses**: Coordinator can bind to multiple IP addresses and ports simultaneously
-- **Monitoring Mode**: Terminal UI for system management and monitoring
+- **Metrics & Monitoring**: Prometheus metrics with Grafana dashboards
 - **IPv6 Support**: Automatic detection and utilization of IPv6 addresses
 - **Round-Robin Load Balancing**: Distributes requests across available IPs
 - **REST API**: Full API for system management and request execution
@@ -44,10 +44,15 @@ python main.py --mode agent --coordinator-url http://localhost:8000 --agent-id a
 
 If no agent ID is provided, one will be auto-generated.
 
-### Start the Monitoring TUI
+### Start Monitoring Stack
 
 ```bash
-python main.py --mode monitoring --coordinator-url http://localhost:8000
+# Start the monitoring stack (Prometheus + Grafana)
+docker-compose -f docker-compose.monitoring.yml up -d
+
+# Access Grafana dashboard
+open http://localhost:3000
+# Default login: admin/admin
 ```
 
 ## API Endpoints
@@ -68,6 +73,7 @@ python main.py --mode monitoring --coordinator-url http://localhost:8000
 - `GET /api/pool/status` - Get IP pool status
 - `GET /api/stats` - Get system statistics
 - `GET /api/history` - Get request history
+- `GET /metrics` - Prometheus metrics endpoint
 
 ## Environment Variables
 
@@ -78,13 +84,14 @@ You can configure the application using environment variables with the `DISPATCH
 - `DISPATCHER_AGENT_ID` - Agent identifier
 - `DISPATCHER_LOG_LEVEL` - Logging level (DEBUG/INFO/WARNING/ERROR)
 
-## Monitoring TUI Shortcuts
+## Legacy Monitoring TUI (Deprecated)
 
-- `q` - Quit
-- `r` - Refresh data
-- `e` - Execute request
-- `c` - Configure request
-- Tab navigation between panels
+The legacy monitoring mode is deprecated in favor of Grafana dashboards:
+
+```bash
+# Deprecated - use Grafana instead
+python main.py --mode monitoring --coordinator-url http://localhost:8000
+```
 
 ## Architecture
 
@@ -123,6 +130,48 @@ python main.py --mode coordinator \
 - Load balancing across different network segments
 - IPv4/IPv6 dual-stack deployments
 - Development/testing with multiple local addresses
+
+## Monitoring & Metrics
+
+HTTP Dispatcher provides comprehensive monitoring through Prometheus metrics and Grafana dashboards.
+
+### Available Metrics
+
+- `http_dispatcher_requests_total` - Total requests executed (by agent, status code, method)
+- `http_dispatcher_request_duration_seconds` - Request duration histogram (by agent, method)
+- `http_dispatcher_agents_connected` - Number of connected agents
+- `http_dispatcher_agents_total` - Total registered agents
+- `http_dispatcher_ip_pool_size` - Size of the IP pool
+- `http_dispatcher_ip_pool_available` - Available IPs in pool
+- `http_dispatcher_websocket_connections` - Active WebSocket connections
+- `http_dispatcher_request_errors_total` - Request errors (by agent, error type)
+
+### Quick Start Monitoring
+
+1. **Start the coordinator:**
+   ```bash
+   python main.py --mode coordinator --host 0.0.0.0 --port 8000
+   ```
+
+2. **Start monitoring stack:**
+   ```bash
+   docker-compose -f docker-compose.monitoring.yml up -d
+   ```
+
+3. **Access dashboards:**
+   - Grafana: http://localhost:3000 (admin/admin)
+   - Prometheus: http://localhost:9090
+   - Metrics endpoint: http://localhost:8000/metrics
+
+### Dashboard Features
+
+The Grafana dashboard includes:
+- **Real-time agent status** - Connected vs total agents
+- **IP pool monitoring** - Total and available IP addresses
+- **Request rate graphs** - Requests per second by agent and method
+- **Request duration** - Response time percentiles (50th, 95th)
+- **Error tracking** - Error rates and types
+- **System stats** - Total requests, active agents
 
 ## API Usage Examples
 

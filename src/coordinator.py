@@ -5,9 +5,10 @@ import uvicorn
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 import logging
 from collections import deque
+from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
 from src.models import (
     AgentInfo, HTTPRequestConfig, RequestResult, 
     AgentRegistration, IPStatus, ExecuteRequest
@@ -27,7 +28,23 @@ class Coordinator:
         self.round_robin_index = 0
         self.request_history = deque(maxlen=1000)
         self.app = FastAPI(title="HTTP Dispatcher Coordinator")
+        
+        # Prometheus metrics
+        self.setup_metrics()
         self.setup_routes()
+    
+    def setup_metrics(self):
+        # Define Prometheus metrics
+        self.metrics = {
+            'requests_total': Counter('http_dispatcher_requests_total', 'Total number of requests executed', ['agent_id', 'status_code', 'method']),
+            'requests_duration': Histogram('http_dispatcher_request_duration_seconds', 'Request duration in seconds', ['agent_id', 'method']),
+            'agents_connected': Gauge('http_dispatcher_agents_connected', 'Number of connected agents'),
+            'agents_total': Gauge('http_dispatcher_agents_total', 'Total number of registered agents'),
+            'ip_pool_size': Gauge('http_dispatcher_ip_pool_size', 'Size of the IP pool'),
+            'ip_pool_available': Gauge('http_dispatcher_ip_pool_available', 'Number of available IPs in pool'),
+            'websocket_connections': Gauge('http_dispatcher_websocket_connections', 'Number of active WebSocket connections'),
+            'request_errors': Counter('http_dispatcher_request_errors_total', 'Total number of request errors', ['agent_id', 'error_type']),
+        }
     
     def setup_routes(self):
         @self.app.post("/api/agents/register")
@@ -42,6 +59,9 @@ class Coordinator:
             
             self.agents[registration.agent_id] = agent_info
             self.update_ip_pool(registration.agent_id, registration.ipv6_addresses)
+            
+            # Update metrics
+            self.update_metrics()
             
             logger.info(f"Agent {registration.agent_id} registered with {len(registration.ipv6_addresses)} IPv6 addresses")
             return {"status": "success", "message": "Agent registered successfully"}
@@ -154,6 +174,12 @@ class Coordinator:
                     for agent_id, agent in self.agents.items()
                 }
             }
+        
+        @self.app.get("/metrics")
+        async def get_metrics():
+            # Update metrics before returning
+            self.update_metrics()
+            return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
     
     def update_ip_pool(self, agent_id: str, ipv6_addresses: List[str]):
         self.ip_pool = [ip for ip in self.ip_pool if ip.agent_id != agent_id]
@@ -165,6 +191,17 @@ class Coordinator:
                 status="available"
             )
             self.ip_pool.append(ip_status)
+    
+    def update_metrics(self):
+        # Update gauge metrics
+        active_agents = len([a for a in self.agents.values() if a.status == "active"])
+        available_ips = len([ip for ip in self.ip_pool if ip.status == "available"])
+        
+        self.metrics['agents_connected'].set(len(self.agent_connections))
+        self.metrics['agents_total'].set(len(self.agents))
+        self.metrics['ip_pool_size'].set(len(self.ip_pool))
+        self.metrics['ip_pool_available'].set(available_ips)
+        self.metrics['websocket_connections'].set(len(self.agent_connections))
     
     async def handle_agent_message(self, agent_id: str, message: str):
         try:
@@ -242,6 +279,7 @@ class Coordinator:
             await ws.send_text(message)
             
             # Wait for the specific response using the future
+            start_time = datetime.utcnow()
             try:
                 response_text = await asyncio.wait_for(future, timeout=35.0)
                 response = json.loads(response_text)
@@ -249,7 +287,31 @@ class Coordinator:
                 # Clean up the pending request on timeout
                 if request_id in self.pending_requests:
                     del self.pending_requests[request_id]
+                # Track timeout error
+                self.metrics['request_errors'].labels(agent_id=agent_id, error_type='timeout').inc()
                 raise
+            
+            # Track request metrics
+            duration = (datetime.utcnow() - start_time).total_seconds()
+            status_code = response.get("status_code", "unknown")
+            method = execute_config.method
+            
+            self.metrics['requests_total'].labels(
+                agent_id=agent_id, 
+                status_code=str(status_code), 
+                method=method
+            ).inc()
+            self.metrics['requests_duration'].labels(
+                agent_id=agent_id, 
+                method=method
+            ).observe(duration)
+            
+            # Track errors if request failed
+            if not response.get("success", False):
+                error_type = "request_failed"
+                if response.get("error"):
+                    error_type = response.get("error", "unknown_error")[:50]  # Limit label length
+                self.metrics['request_errors'].labels(agent_id=agent_id, error_type=error_type).inc()
             
             # Extract the actual source IP used by the agent from the response metadata
             actual_source_ip = response.get("metadata", {}).get("source_ip", selected_ip.ip)
