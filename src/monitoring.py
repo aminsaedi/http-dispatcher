@@ -153,7 +153,7 @@ class MonitoringApp(App):
             
             self.update_display()
         except Exception as e:
-            self.status_widget.update(f"Error: {e}", classes="error")
+            self.status_widget.update(f"Error: {e}")
     
     def update_display(self):
         status_text = f"Active Agents: {self.pool_status.get('active_agents', 0)}\n"
@@ -262,15 +262,15 @@ class MonitoringApp(App):
                     result_text += f"Source IP: {result['metadata']['source_ip']}\n"
                     result_text += f"Status Code: {result['result'].get('status_code', 'N/A')}\n"
                     
-                    self.execute_result.update(result_text, classes="success")
+                    self.execute_result.update(result_text)
                     self.result_widget.update(json.dumps(result, indent=2))
                     
                     await self.refresh_data()
                 else:
                     error_text = f"Failed: {response.text}"
-                    self.execute_result.update(error_text, classes="error")
+                    self.execute_result.update(error_text)
         except Exception as e:
-            self.execute_result.update(f"Error: {e}", classes="error")
+            self.execute_result.update(f"Error: {e}")
     
     def action_refresh(self) -> None:
         self.run_worker(self.refresh_data())
