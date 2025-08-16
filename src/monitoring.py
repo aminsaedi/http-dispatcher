@@ -91,17 +91,11 @@ class MonitoringApp(App):
                         yield self.stats_widget
                     
                     with Vertical():
-                        yield Static("Last Request Result", classes="info-panel")
-                        self.result_widget = Static("No requests executed yet", id="result")
-                        yield self.result_widget
+                        yield Static("Request History & Last Result", classes="info-panel")
+                        with ScrollableContainer():
+                            self.result_widget = Static("No requests executed yet", id="result")
+                            yield self.result_widget
             
-            with TabPane("Agents", id="agents"):
-                self.agents_table = DataTable()
-                yield self.agents_table
-            
-            with TabPane("IP Pool", id="pool"):
-                self.pool_table = DataTable()
-                yield self.pool_table
             
             with TabPane("Configuration", id="config"):
                 with Vertical():
@@ -132,16 +126,8 @@ class MonitoringApp(App):
                     self.execute_result = Static("", id="exec-result")
                     yield self.execute_result
             
-            with TabPane("History", id="history"):
-                self.history_table = DataTable()
-                yield self.history_table
     
     async def on_mount(self) -> None:
-        # Initialize table columns after mounting
-        self.agents_table.add_columns("Agent ID", "Hostname", "IPv6 Count", "Status", "Requests", "Last Seen")
-        self.pool_table.add_columns("IP Address", "Agent ID", "Status", "Requests", "Last Used")
-        self.history_table.add_columns("Timestamp", "Agent", "IP", "Status", "Status Code")
-        
         self.refresh_task = self.set_interval(5, self.action_refresh)
         self.action_refresh()
     
@@ -169,52 +155,58 @@ class MonitoringApp(App):
         status_text += f"Total IPs: {self.pool_status.get('total_ips', 0)}\n"
         self.status_widget.update(status_text)
         
-        stats_text = f"Total Agents: {self.stats.get('total_agents', 0)}\n"
+        # Create detailed stats with agent and IP info
+        stats_text = f"=== SYSTEM STATS ===\n"
+        stats_text += f"Total Agents: {self.stats.get('total_agents', 0)}\n"
         stats_text += f"Active Agents: {self.stats.get('active_agents', 0)}\n"
         stats_text += f"Total Requests: {self.stats.get('total_requests_processed', 0)}\n"
-        stats_text += f"Data Fetched: {len(self.agents_data)} agents, {len(self.pool_status.get('ip_pool', []))} IPs\n"
+        stats_text += f"Total IPs in Pool: {len(self.pool_status.get('ip_pool', []))}\n\n"
+        
+        # Add agent details
+        if self.agents_data:
+            stats_text += "=== CONNECTED AGENTS ===\n"
+            for agent in self.agents_data:
+                stats_text += f"\n• {agent.get('agent_id', 'N/A')}\n"
+                stats_text += f"  Host: {agent.get('hostname', 'N/A')}\n"
+                stats_text += f"  IPv6s: {len(agent.get('ipv6_addresses', []))}\n"
+                stats_text += f"  Status: {agent.get('status', 'N/A')}\n"
+                stats_text += f"  Requests: {agent.get('requests_processed', 0)}\n"
+        
+        # Add IP pool summary
+        ip_pool = self.pool_status.get("ip_pool", [])
+        if ip_pool:
+            stats_text += f"\n=== IP POOL ({len(ip_pool)} IPs) ===\n"
+            for ip in ip_pool[:5]:  # Show first 5 IPs
+                stats_text += f"• {ip.get('ip', 'N/A')} ({ip.get('agent_id', 'N/A')})\n"
+            if len(ip_pool) > 5:
+                stats_text += f"... and {len(ip_pool) - 5} more\n"
+        
         self.stats_widget.update(stats_text)
         
-        self.agents_table.clear()
-        for agent in self.agents_data:
-            self.agents_table.add_row(
-                agent.get("agent_id", ""),
-                agent.get("hostname", ""),
-                str(len(agent.get("ipv6_addresses", []))),
-                agent.get("status", ""),
-                str(agent.get("requests_processed", 0)),
-                agent.get("last_seen", "")
-            )
-        
-        self.pool_table.clear()
-        for ip in self.pool_status.get("ip_pool", []):
-            self.pool_table.add_row(
-                ip.get("ip", ""),
-                ip.get("agent_id", ""),
-                ip.get("status", ""),
-                str(ip.get("requests_count", 0)),
-                ip.get("last_used", "N/A") or "N/A"
-            )
-        
-        self.history_table.clear()
-        for item in self.history_data:
-            # Handle both old format (nested) and new format (flat)
-            if "result" in item:
-                # Old format with nested result
-                metadata = item.get("metadata", {})
-                result = item.get("result", {})
-            else:
-                # New format - flat structure
-                metadata = item.get("metadata", {})
-                result = item
+        # Update result widget with history
+        if self.history_data:
+            history_text = "=== RECENT REQUESTS ===\n\n"
+            for item in self.history_data[:10]:  # Show last 10
+                if "result" in item:
+                    metadata = item.get("metadata", {})
+                    result = item.get("result", {})
+                else:
+                    metadata = item.get("metadata", {})
+                    result = item
+                
+                timestamp = metadata.get("timestamp", "")[:19] if metadata.get("timestamp") else ""
+                agent_id = metadata.get("agent_id", "N/A")
+                source_ip = metadata.get("source_ip", "N/A")
+                status = "✓" if result.get("success") else "✗"
+                code = result.get("status_code", "N/A")
+                
+                history_text += f"{timestamp} [{status}] {code} - {agent_id} ({source_ip})\n"
             
-            self.history_table.add_row(
-                metadata.get("timestamp", "")[:19] if metadata.get("timestamp") else "",
-                metadata.get("agent_id", ""),
-                metadata.get("source_ip", ""),
-                "Success" if result.get("success") else "Failed",
-                str(result.get("status_code", "N/A"))
-            )
+            if self.last_result:
+                history_text += f"\n=== LAST RESULT DETAILS ===\n"
+                history_text += json.dumps(self.last_result, indent=2)
+            
+            self.result_widget.update(history_text)
     
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save-config":
