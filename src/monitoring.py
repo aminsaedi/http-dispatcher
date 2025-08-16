@@ -96,11 +96,11 @@ class MonitoringApp(App):
                         yield self.result_widget
             
             with TabPane("Agents", id="agents"):
-                self.agents_table = DataTable(show_header=True, zebra_stripes=True)
+                self.agents_table = DataTable()
                 yield self.agents_table
             
             with TabPane("IP Pool", id="pool"):
-                self.pool_table = DataTable(show_header=True, zebra_stripes=True)
+                self.pool_table = DataTable()
                 yield self.pool_table
             
             with TabPane("Configuration", id="config"):
@@ -133,7 +133,7 @@ class MonitoringApp(App):
                     yield self.execute_result
             
             with TabPane("History", id="history"):
-                self.history_table = DataTable(show_header=True, zebra_stripes=True)
+                self.history_table = DataTable()
                 yield self.history_table
     
     async def on_mount(self) -> None:
@@ -172,6 +172,7 @@ class MonitoringApp(App):
         stats_text = f"Total Agents: {self.stats.get('total_agents', 0)}\n"
         stats_text += f"Active Agents: {self.stats.get('active_agents', 0)}\n"
         stats_text += f"Total Requests: {self.stats.get('total_requests_processed', 0)}\n"
+        stats_text += f"Data Fetched: {len(self.agents_data)} agents, {len(self.pool_status.get('ip_pool', []))} IPs\n"
         self.stats_widget.update(stats_text)
         
         self.agents_table.clear()
