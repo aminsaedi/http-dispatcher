@@ -23,6 +23,40 @@ class Agent:
         
     def get_ipv6_addresses(self) -> List[str]:
         ipv6_addresses = []
+        
+        def is_global_ipv6(ip: str) -> bool:
+            """Check if an IPv6 address is a global unicast address"""
+            # Remove scope id if present
+            ip = ip.split('%')[0]
+            
+            # Filter out non-global addresses
+            # Link-local: fe80::/10
+            if ip.startswith('fe80:') or ip.startswith('fe8') or ip.startswith('fe9') or ip.startswith('fea') or ip.startswith('feb'):
+                return False
+            # Loopback: ::1/128
+            if ip == '::1' or ip.startswith('::1/'):
+                return False
+            # Unique Local Addresses (ULA): fc00::/7 (fc00:: - fdff::)
+            if ip.startswith('fc') or ip.startswith('fd'):
+                return False
+            # Multicast: ff00::/8
+            if ip.startswith('ff'):
+                return False
+            # Documentation: 2001:db8::/32
+            if ip.startswith('2001:db8:'):
+                return False
+            # IPv4-mapped IPv6: ::ffff:0:0/96
+            if ip.startswith('::ffff:'):
+                return False
+            
+            # Check if it starts with 2 or 3 (global unicast range)
+            # Global unicast addresses typically start with 2000::/3 (2000:: - 3fff::)
+            if ip.startswith('2') or ip.startswith('3'):
+                return True
+            
+            # Some global addresses might not start with 2 or 3, but let's be conservative
+            return False
+        
         try:
             # Method 1: Try using netifaces if available
             try:
@@ -32,13 +66,13 @@ class Agent:
                     if netifaces.AF_INET6 in addrs:
                         for addr_info in addrs[netifaces.AF_INET6]:
                             ip = addr_info['addr'].split('%')[0]  # Remove scope id if present
-                            if not ip.startswith('fe80:') and not ip.startswith('::1'):
+                            if is_global_ipv6(ip):
                                 ipv6_addresses.append(ip)
             except ImportError:
                 # Method 2: Try using ip command (Linux)
                 import subprocess
                 try:
-                    result = subprocess.run(['ip', '-6', 'addr', 'show'], 
+                    result = subprocess.run(['ip', '-6', 'addr', 'show', 'scope', 'global'], 
                                          capture_output=True, text=True, timeout=5)
                     if result.returncode == 0:
                         import re
@@ -46,7 +80,7 @@ class Agent:
                         pattern = r'inet6\s+([0-9a-fA-F:]+)/\d+'
                         matches = re.findall(pattern, result.stdout)
                         for ip in matches:
-                            if not ip.startswith('fe80') and not ip.startswith('::1'):
+                            if is_global_ipv6(ip):
                                 ipv6_addresses.append(ip)
                 except (subprocess.SubprocessError, FileNotFoundError):
                     # Method 3: Fall back to socket method but with better handling
@@ -56,13 +90,13 @@ class Agent:
                             # Use Google's public DNS IPv6
                             s.connect(('2001:4860:4860::8888', 80))
                             local_ip = s.getsockname()[0]
-                            if local_ip and not local_ip.startswith('fe80') and not local_ip.startswith('::1'):
+                            if local_ip and is_global_ipv6(local_ip):
                                 ipv6_addresses.append(local_ip)
                     except:
                         # Last resort: try hostname resolution
                         for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET6):
                             ip = info[4][0]
-                            if not ip.startswith('fe80:') and not ip.startswith('::1'):
+                            if is_global_ipv6(ip):
                                 ipv6_addresses.append(ip)
         except Exception as e:
             logger.error(f"Error getting IPv6 addresses: {e}")
