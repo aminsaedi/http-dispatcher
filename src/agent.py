@@ -191,21 +191,55 @@ class Agent:
         
         try:
             transport = httpx.AsyncHTTPTransport(local_address=source_ip)
+            
+            # Prepare request body
+            request_data = None
+            request_json = None
+            
+            if request_config.body is not None:
+                if isinstance(request_config.body, (dict, list)):
+                    # Body is already a Python object, send as JSON
+                    request_json = request_config.body
+                elif isinstance(request_config.body, str):
+                    # Try to parse string as JSON, otherwise send as text
+                    try:
+                        parsed_body = json.loads(request_config.body)
+                        request_json = parsed_body
+                    except json.JSONDecodeError:
+                        request_data = request_config.body
+                else:
+                    request_data = request_config.body
+            
             async with httpx.AsyncClient(transport=transport) as client:
                 response = await client.request(
                     method=request_config.method,
                     url=request_config.url,
                     headers=request_config.headers,
                     params=request_config.params,
-                    json=request_config.body if request_config.body else None,
+                    json=request_json,
+                    data=request_data,
                     timeout=request_config.timeout
                 )
+                
+                # Try to parse response as JSON
+                response_body = response.text
+                is_json = False
+                
+                if response_body:
+                    try:
+                        parsed_response = json.loads(response_body)
+                        response_body = parsed_response
+                        is_json = True
+                    except json.JSONDecodeError:
+                        # Keep as text if not valid JSON
+                        pass
                 
                 return RequestResult(
                     success=True,
                     status_code=response.status_code,
                     headers=dict(response.headers),
-                    body=response.text,
+                    body=response_body,
+                    is_json=is_json,
                     metadata={
                         "agent_id": self.agent_id,
                         "source_ip": source_ip,

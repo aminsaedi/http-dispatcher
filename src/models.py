@@ -43,6 +43,7 @@ class RequestResult(BaseModel):
     status_code: Optional[int] = None
     headers: Optional[Dict[str, str]] = None
     body: Optional[Any] = None
+    is_json: bool = False
     error: Optional[str] = None
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
