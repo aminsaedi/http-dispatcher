@@ -6,7 +6,7 @@ services:
     image: prom/prometheus:v2.50.1
     container_name: prometheus
     ports:
-      - "9090:9090"
+      - "100.117.91.127:9090:9090"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
       - ./monitoring/alert-rules.yml:/etc/prometheus/alert-rules.yml
@@ -27,7 +27,7 @@ services:
     image: grafana/grafana:10.4.0
     container_name: grafana
     ports:
-      - "3000:3000"
+      - "100.117.91.127:3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
@@ -47,7 +47,7 @@ services:
     image: prom/node-exporter:v1.7.0
     container_name: node_exporter
     ports:
-      - "9100:9100"
+      - "100.117.91.127:9100:9100"
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro

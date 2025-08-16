@@ -15,7 +15,7 @@ scrape_configs:
   # HTTP Dispatcher Coordinator (running on host)
   - job_name: 'http-dispatcher'
     static_configs:
-      - targets: ['host.docker.internal:8000']
+      - targets: ['100.117.91.127:7575']
     metrics_path: '/metrics'
     scrape_interval: 10s
 
