@@ -8,6 +8,12 @@ import asyncio
 from datetime import datetime
 import json
 from typing import Optional, Dict, List, Any
+import logging
+
+# Suppress httpx and other library logs in monitoring mode
+logging.getLogger("httpx").setLevel(logging.CRITICAL)
+logging.getLogger("httpcore").setLevel(logging.CRITICAL)
+logging.getLogger("asyncio").setLevel(logging.CRITICAL)
 
 
 class MonitoringApp(App):

@@ -4,15 +4,28 @@ import click
 import logging
 import uvicorn
 import uuid
+import sys
 from src.config import settings
 from src.agent import Agent
 from src.coordinator import Coordinator
 from src.monitoring import MonitoringApp
 
-logging.basicConfig(
-    level=getattr(logging, settings.log_level),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Configure logging based on mode
+def setup_logging(mode: str):
+    if mode == 'monitoring':
+        # For monitoring mode, disable all logging or redirect to file
+        logging.basicConfig(
+            level=logging.CRITICAL,  # Only show critical errors
+            filename='/tmp/http-dispatcher-monitoring.log',
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+    else:
+        # For other modes, use normal console logging
+        logging.basicConfig(
+            level=getattr(logging, settings.log_level),
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
+
 logger = logging.getLogger(__name__)
 
 
@@ -26,6 +39,9 @@ logger = logging.getLogger(__name__)
 @click.option('--port', default=8000, type=int, help='Port to bind the coordinator to')
 def main(mode, coordinator_url, agent_id, host, port):
     """HTTP Dispatcher - Distributed HTTP request system with IPv6 support"""
+    
+    # Setup logging based on mode
+    setup_logging(mode)
     
     if mode == 'coordinator':
         logger.info("Starting Coordinator mode")
