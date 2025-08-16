@@ -3,6 +3,7 @@ import socket
 import platform
 import httpx
 import json
+import random
 from typing import List, Optional
 from datetime import datetime
 import websockets
@@ -20,6 +21,10 @@ class Agent:
         self.request_config: Optional[HTTPRequestConfig] = None
         self.ws_connection = None
         self.running = False
+        self.reconnect_attempts = 0
+        self.max_reconnect_attempts = None  # Unlimited retries
+        self.base_retry_delay = 1.0  # Start with 1 second
+        self.max_retry_delay = 300.0  # Max 5 minutes
         
     def get_ipv6_addresses(self) -> List[str]:
         ipv6_addresses = []
@@ -117,6 +122,20 @@ class Agent:
         
         return unique_addresses
     
+    def get_retry_delay(self) -> float:
+        if self.reconnect_attempts == 0:
+            return 0  # First attempt should be immediate
+        
+        # Exponential backoff with jitter: base * (2 ^ attempts) + random jitter
+        delay = self.base_retry_delay * (2 ** min(self.reconnect_attempts - 1, 8))  # Cap at 2^8
+        delay = min(delay, self.max_retry_delay)
+        
+        # Add jitter (±25% of delay)
+        jitter = delay * 0.25 * (2 * random.random() - 1)
+        delay += jitter
+        
+        return max(0, delay)
+    
     async def register_with_coordinator(self):
         registration = AgentRegistration(
             agent_id=self.agent_id,
@@ -140,23 +159,46 @@ class Agent:
             logger.error(f"Error registering with coordinator: {e}")
             return False
     
-    async def execute_request(self, source_ip: str) -> RequestResult:
-        if not self.request_config:
+    async def execute_request(self, source_ip: str, config: Optional[dict] = None) -> RequestResult:
+        # Use provided config or fall back to stored config
+        request_config = None
+        if config:
+            try:
+                request_config = HTTPRequestConfig(**config)
+            except Exception as e:
+                return RequestResult(
+                    success=False,
+                    error=f"Invalid request configuration: {e}",
+                    metadata={
+                        "agent_id": self.agent_id,
+                        "source_ip": source_ip,
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                )
+        else:
+            request_config = self.request_config
+        
+        if not request_config:
             return RequestResult(
                 success=False,
-                error="No request configuration available"
+                error="No request configuration available",
+                metadata={
+                    "agent_id": self.agent_id,
+                    "source_ip": source_ip,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
             )
         
         try:
             transport = httpx.AsyncHTTPTransport(local_address=source_ip)
             async with httpx.AsyncClient(transport=transport) as client:
                 response = await client.request(
-                    method=self.request_config.method,
-                    url=self.request_config.url,
-                    headers=self.request_config.headers,
-                    params=self.request_config.params,
-                    json=self.request_config.body if self.request_config.body else None,
-                    timeout=self.request_config.timeout
+                    method=request_config.method,
+                    url=request_config.url,
+                    headers=request_config.headers,
+                    params=request_config.params,
+                    json=request_config.body if request_config.body else None,
+                    timeout=request_config.timeout
                 )
                 
                 return RequestResult(
@@ -193,7 +235,8 @@ class Agent:
             
             elif command == "execute_request":
                 source_ip = data.get("source_ip")
-                result = await self.execute_request(source_ip)
+                config = data.get("config")  # New: support custom config per request
+                result = await self.execute_request(source_ip, config)
                 return result.model_dump()
             
             elif command == "ping":
@@ -219,8 +262,12 @@ class Agent:
                     "type": "heartbeat",
                     "data": heartbeat.model_dump()
                 }))
+            except websockets.exceptions.ConnectionClosed:
+                logger.warning("Cannot send heartbeat: WebSocket connection closed")
+                raise  # Re-raise to trigger reconnection
             except Exception as e:
                 logger.error(f"Error sending heartbeat: {e}")
+                raise  # Re-raise to trigger reconnection
     
     async def websocket_handler(self):
         ws_url = self.coordinator_url.replace("http://", "ws://").replace("https://", "wss://")
@@ -228,9 +275,25 @@ class Agent:
         
         while self.running:
             try:
-                async with websockets.connect(ws_url) as websocket:
+                self.reconnect_attempts += 1
+                delay = self.get_retry_delay()
+                
+                if delay > 0:
+                    logger.info(f"Waiting {delay:.1f}s before reconnection attempt {self.reconnect_attempts}")
+                    await asyncio.sleep(delay)
+                
+                if not self.running:
+                    break
+                
+                logger.info(f"Attempting to connect to coordinator (attempt {self.reconnect_attempts})")
+                async with websockets.connect(ws_url, ping_interval=20, ping_timeout=10) as websocket:
                     self.ws_connection = websocket
+                    self.reconnect_attempts = 0  # Reset on successful connection
                     logger.info(f"Connected to coordinator via WebSocket")
+                    
+                    # Re-register when reconnecting
+                    if not await self.register_with_coordinator():
+                        logger.warning("Failed to re-register after reconnection")
                     
                     heartbeat_task = asyncio.create_task(self.heartbeat_loop())
                     
@@ -238,26 +301,56 @@ class Agent:
                         async for message in websocket:
                             response = await self.handle_message(message)
                             await websocket.send(json.dumps(response))
+                    except websockets.exceptions.ConnectionClosed:
+                        logger.warning("WebSocket connection closed by coordinator")
+                    except Exception as e:
+                        logger.error(f"Error in WebSocket message handling: {e}")
                     finally:
                         heartbeat_task.cancel()
+                        try:
+                            await heartbeat_task
+                        except asyncio.CancelledError:
+                            pass
                         
+            except websockets.exceptions.InvalidURI:
+                logger.error(f"Invalid WebSocket URL: {ws_url}")
+                break
+            except websockets.exceptions.ConnectionClosed:
+                logger.warning("WebSocket connection closed")
+            except (ConnectionRefusedError, OSError) as e:
+                logger.warning(f"Coordinator unavailable: {e}")
             except Exception as e:
                 logger.error(f"WebSocket connection error: {e}")
-                await asyncio.sleep(5)
+            
+            # Clean up connection reference on any error
+            self.ws_connection = None
     
     async def heartbeat_loop(self):
         while self.running:
-            await self.send_heartbeat()
-            await asyncio.sleep(30)
+            try:
+                await self.send_heartbeat()
+                await asyncio.sleep(30)
+            except (websockets.exceptions.ConnectionClosed, ConnectionError, OSError):
+                logger.warning("Heartbeat failed due to connection issue")
+                break  # Exit heartbeat loop to trigger reconnection
+            except Exception as e:
+                logger.error(f"Unexpected error in heartbeat loop: {e}")
+                await asyncio.sleep(30)  # Continue heartbeat despite other errors
     
     async def run(self):
         self.running = True
         logger.info(f"Starting agent {self.agent_id}")
         
-        if await self.register_with_coordinator():
-            await self.websocket_handler()
+        # Try initial registration, but proceed to websocket handler regardless
+        # The websocket handler will handle re-registration on connection
+        initial_registration = await self.register_with_coordinator()
+        if initial_registration:
+            logger.info("Initial registration successful")
+            self.reconnect_attempts = 0  # Reset since initial connection worked
         else:
-            logger.error("Failed to register with coordinator")
+            logger.warning("Initial registration failed, will retry during WebSocket connection")
+        
+        await self.websocket_handler()
     
     async def stop(self):
         self.running = False
