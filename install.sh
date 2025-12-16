@@ -327,13 +327,15 @@ if [[ "$MODE" == "coordinator" ]]; then
             echo -e "${GREEN}  - ${bind_addr}${NC}"
             BIND_ARGS="$BIND_ARGS --bind $bind_addr"
         done
-    # Otherwise, auto-detect Tailscale if available
-    # Note: We don't need to explicitly bind to Tailscale IP if binding to 0.0.0.0
-    # as 0.0.0.0 already includes all interfaces including Tailscale
-    # Only bind to Tailscale IP if host is not 0.0.0.0
-    if detect_tailscale && [[ -n "$TAILSCALE_IP" ]] && [[ "$COORDINATOR_HOST" != "0.0.0.0" ]]; then
-        echo -e "${GREEN}✓ Auto-binding coordinator to Tailscale IP: ${TAILSCALE_IP}${NC}"
-        BIND_ARGS="$BIND_ARGS --bind ${TAILSCALE_IP}:${COORDINATOR_PORT}"
+    else
+        # Otherwise, auto-detect Tailscale if available
+        # Note: We don't need to explicitly bind to Tailscale IP if binding to 0.0.0.0
+        # as 0.0.0.0 already includes all interfaces including Tailscale
+        # Only bind to Tailscale IP if host is not 0.0.0.0
+        if detect_tailscale && [[ -n "$TAILSCALE_IP" ]] && [[ "$COORDINATOR_HOST" != "0.0.0.0" ]]; then
+            echo -e "${GREEN}✓ Auto-binding coordinator to Tailscale IP: ${TAILSCALE_IP}${NC}"
+            BIND_ARGS="$BIND_ARGS --bind ${TAILSCALE_IP}:${COORDINATOR_PORT}"
+        fi
     fi
     
     cat > /etc/systemd/system/http-dispatcher-coordinator.service <<EOF
