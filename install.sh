@@ -388,7 +388,7 @@ EOF
     SERVICE_NAME="http-dispatcher-agent"
 fi
 
-# Create monitoring service for coordinator
+# Create monitoring service for coordinator  
 if [[ "$MODE" == "coordinator" ]]; then
     echo -e "${BLUE}Creating monitoring service...${NC}"
     
