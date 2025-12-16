@@ -197,16 +197,60 @@ fi
 echo -e "${BLUE}========================================${NC}"
 
 # Detect installation method
-# If running from curl, we need to download the files
-# For now, assume we're in the project directory
+# Check if we're in the project directory or need to download
+SOURCE_DIR=""
+TEMP_DIR=""
+
 if [[ -f "main.py" ]] && [[ -d "src" ]]; then
     echo -e "${GREEN}Detected local installation from source${NC}"
     SOURCE_DIR="$(pwd)"
 else
-    echo -e "${RED}Error: Installation files not found in current directory${NC}"
-    echo "Please run this script from the http-dispatcher project directory"
-    echo "Or use: curl -fsSL https://raw.githubusercontent.com/aminsaedi/http-dispatcher/main/install.sh | bash -s -- [mode]"
-    exit 1
+    # Running via curl - need to download the repository
+    echo -e "${BLUE}Downloading HTTP Dispatcher from repository...${NC}"
+    
+    # Create temporary directory
+    TEMP_DIR=$(mktemp -d)
+    trap "rm -rf $TEMP_DIR" EXIT
+    
+    # Download repository
+    echo -e "${BLUE}Fetching latest release...${NC}"
+    cd "$TEMP_DIR"
+    
+    # Try to download from GitHub using git (preferred)
+    if command -v git &> /dev/null; then
+        echo -e "${BLUE}Cloning repository...${NC}"
+        if git clone --depth 1 https://github.com/aminsaedi/http-dispatcher.git . 2>/dev/null; then
+            SOURCE_DIR="$TEMP_DIR"
+        else
+            echo -e "${YELLOW}Git clone failed, trying tarball download...${NC}"
+            rm -rf "$TEMP_DIR"/*
+            # Fallback: download tarball
+            if curl -fsSL https://github.com/aminsaedi/http-dispatcher/archive/refs/heads/main.tar.gz | tar -xz --strip-components=1 2>/dev/null; then
+                SOURCE_DIR="$TEMP_DIR"
+            else
+                echo -e "${RED}Failed to download repository. Please check your internet connection.${NC}"
+                exit 1
+            fi
+        fi
+    else
+        # No git available, use tarball
+        echo -e "${BLUE}Downloading tarball...${NC}"
+        if curl -fsSL https://github.com/aminsaedi/http-dispatcher/archive/refs/heads/main.tar.gz | tar -xz --strip-components=1 2>/dev/null; then
+            SOURCE_DIR="$TEMP_DIR"
+        else
+            echo -e "${RED}Failed to download repository. Please check your internet connection.${NC}"
+            echo -e "${YELLOW}You may need to install git or ensure curl is available.${NC}"
+            exit 1
+        fi
+    fi
+    
+    # Verify download
+    if [[ ! -f "$SOURCE_DIR/main.py" ]] || [[ ! -d "$SOURCE_DIR/src" ]]; then
+        echo -e "${RED}Error: Downloaded files are incomplete${NC}"
+        exit 1
+    fi
+    
+    echo -e "${GREEN}✓ Repository downloaded successfully${NC}"
 fi
 
 # Create installation directory
@@ -228,6 +272,8 @@ if [[ "$MODE" == "coordinator" ]]; then
     if [[ -f "$SOURCE_DIR/docker-compose.monitoring.yml" ]]; then
         cp "$SOURCE_DIR"/docker-compose.monitoring.yml "$INSTALL_DIR"/monitoring/
     fi
+    # Ensure monitoring directory exists
+    mkdir -p "$INSTALL_DIR/monitoring"
     
     # Update Prometheus config with Tailscale IP if available
     if detect_tailscale && [[ -n "$TAILSCALE_IP" ]]; then
@@ -515,5 +561,10 @@ if [[ "$MODE" == "agent" ]]; then
         echo "  Tailscale: $TAILSCALE_HOSTNAME"
     fi
     echo ""
+fi
+
+# Cleanup temporary directory if used
+if [[ -n "$TEMP_DIR" ]] && [[ -d "$TEMP_DIR" ]]; then
+    rm -rf "$TEMP_DIR"
 fi
 
