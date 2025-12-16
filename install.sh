@@ -264,6 +264,9 @@ cp -r "$SOURCE_DIR"/src "$INSTALL_DIR"/lib/
 cp "$SOURCE_DIR"/main.py "$INSTALL_DIR"/bin/
 cp "$SOURCE_DIR"/requirements.txt "$INSTALL_DIR"/
 
+# Create __init__.py in lib if it doesn't exist to make it a package
+touch "$INSTALL_DIR"/lib/__init__.py
+
 # Copy monitoring files if coordinator
 if [[ "$MODE" == "coordinator" ]]; then
     if [[ -d "$SOURCE_DIR/monitoring" ]]; then
@@ -340,6 +343,7 @@ Type=simple
 User=$SERVICE_USER
 WorkingDirectory=$INSTALL_DIR
 Environment="PATH=$INSTALL_DIR/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONPATH=$INSTALL_DIR/lib"
 ExecStart=/usr/bin/python3 $INSTALL_DIR/bin/main.py --mode coordinator $BIND_ARGS
 Restart=always
 RestartSec=10
@@ -366,6 +370,7 @@ Type=simple
 User=$SERVICE_USER
 WorkingDirectory=$INSTALL_DIR
 Environment="PATH=$INSTALL_DIR/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONPATH=$INSTALL_DIR/lib"
 Environment="DISPATCHER_COORDINATOR_URL=$COORDINATOR_URL"
 Environment="DISPATCHER_AGENT_ID=$AGENT_ID"
 ExecStart=/usr/bin/python3 $INSTALL_DIR/bin/main.py --mode agent --coordinator-url $COORDINATOR_URL --agent-id $AGENT_ID
@@ -419,8 +424,8 @@ Requires=docker.service
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=$INSTALL_DIR/monitoring
-ExecStart=/bin/bash -c "$DOCKER_COMPOSE_CMD -f $INSTALL_DIR/monitoring/docker-compose.monitoring.yml up -d"
-ExecStop=/bin/bash -c "$DOCKER_COMPOSE_CMD -f $INSTALL_DIR/monitoring/docker-compose.monitoring.yml down"
+ExecStart=/bin/bash -c "cd $INSTALL_DIR/monitoring && $DOCKER_COMPOSE_CMD -f docker-compose.monitoring.yml down 2>/dev/null || true && $DOCKER_COMPOSE_CMD -f docker-compose.monitoring.yml up -d"
+ExecStop=/bin/bash -c "cd $INSTALL_DIR/monitoring && $DOCKER_COMPOSE_CMD -f docker-compose.monitoring.yml down"
 StandardOutput=journal
 StandardError=journal
 
