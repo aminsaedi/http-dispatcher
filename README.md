@@ -184,7 +184,49 @@ python main.py --mode monitoring --coordinator-url http://localhost:8000
 
 ## Multiple Bind Addresses
 
-The coordinator can bind to multiple network interfaces simultaneously:
+The coordinator can bind to multiple network interfaces simultaneously. This allows you to control exactly which interfaces the coordinator listens on.
+
+### During Installation
+
+```bash
+# Bind to specific IPs during installation
+sudo bash install.sh coordinator \
+  --bind 192.168.1.100:8000 \
+  --bind 10.0.0.50:8000
+
+# Bind to IPv6 addresses
+sudo bash install.sh coordinator \
+  --bind [::1]:8000 \
+  --bind [2001:db8::1]:8000
+```
+
+### After Installation
+
+Edit the systemd service:
+
+```bash
+sudo systemctl edit http-dispatcher-coordinator
+```
+
+Add bind addresses to the `ExecStart` line:
+
+```ini
+[Service]
+ExecStart=
+ExecStart=/usr/bin/python3 /opt/http-dispatcher/bin/main.py --mode coordinator \
+  --host 0.0.0.0 --port 8000 \
+  --bind 192.168.1.100:8000 \
+  --bind 10.0.0.50:8000
+```
+
+Then reload and restart:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart http-dispatcher-coordinator
+```
+
+### Manual Execution
 
 ```bash
 # Bind to multiple specific IPs
@@ -208,9 +250,12 @@ python main.py --mode coordinator \
 
 **Use cases:**
 - Multi-homed servers with multiple network interfaces
-- Load balancing across different network segments
+- Separating internal and external traffic
 - IPv4/IPv6 dual-stack deployments
+- Tailscale + local network access
 - Development/testing with multiple local addresses
+
+**See [CONFIGURATION.md](CONFIGURATION.md) for detailed configuration guide.**
 
 ## Monitoring & Metrics
 
