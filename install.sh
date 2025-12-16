@@ -19,6 +19,7 @@ INSTALL_DIR="/opt/http-dispatcher"
 SERVICE_USER="http-dispatcher"
 COORDINATOR_HOST="0.0.0.0"
 COORDINATOR_PORT="8000"
+BIND_ADDRESSES=()
 TAILSCALE_HOSTNAME=""
 TAILSCALE_IP=""
 
@@ -45,6 +46,10 @@ while [[ $# -gt 0 ]]; do
             COORDINATOR_PORT="$2"
             shift 2
             ;;
+        --bind)
+            BIND_ADDRESSES+=("$2")
+            shift 2
+            ;;
         --install-dir)
             INSTALL_DIR="$2"
             shift 2
@@ -63,12 +68,19 @@ while [[ $# -gt 0 ]]; do
             echo "  --agent-id ID            Agent ID (optional, auto-generated if not provided)"
             echo "  --host HOST              Coordinator bind host (default: 0.0.0.0)"
             echo "  --port PORT              Coordinator bind port (default: 8000)"
+            echo "  --bind ADDRESS           Additional bind address (host:port or host, can be used multiple times)"
             echo "  --install-dir DIR        Installation directory (default: /opt/http-dispatcher)"
+            echo ""
+            echo "Examples:"
+            echo "  # Bind to specific interfaces"
+            echo "  --bind 192.168.1.100:8000 --bind 10.0.0.50:8000"
+            echo "  # Bind to IPv6"
+            echo "  --bind [::1]:8000 --bind [2001:db8::1]:8000"
             echo ""
             echo "Tailscale Integration:"
             echo "  If Tailscale is detected, the installer will:"
             echo "  - Auto-detect coordinator hostname for agents"
-            echo "  - Bind coordinator to Tailscale IP"
+            echo "  - Bind coordinator to Tailscale IP (unless --bind is specified)"
             echo "  - Configure monitoring to use Tailscale networking"
             exit 0
             ;;
@@ -256,10 +268,19 @@ chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
 # Create systemd service file
 echo -e "${BLUE}Creating systemd service...${NC}"
 if [[ "$MODE" == "coordinator" ]]; then
-    # If Tailscale is available, bind to both 0.0.0.0 and Tailscale IP
+    # Build bind arguments
     BIND_ARGS="--host $COORDINATOR_HOST --port $COORDINATOR_PORT"
-    if detect_tailscale && [[ -n "$TAILSCALE_IP" ]]; then
-        echo -e "${GREEN}✓ Binding coordinator to Tailscale IP: ${TAILSCALE_IP}${NC}"
+    
+    # Add custom bind addresses if specified
+    if [[ ${#BIND_ADDRESSES[@]} -gt 0 ]]; then
+        echo -e "${BLUE}Using custom bind addresses:${NC}"
+        for bind_addr in "${BIND_ADDRESSES[@]}"; do
+            echo -e "${GREEN}  - ${bind_addr}${NC}"
+            BIND_ARGS="$BIND_ARGS --bind $bind_addr"
+        done
+    # Otherwise, auto-detect Tailscale if available
+    elif detect_tailscale && [[ -n "$TAILSCALE_IP" ]]; then
+        echo -e "${GREEN}✓ Auto-binding coordinator to Tailscale IP: ${TAILSCALE_IP}${NC}"
         BIND_ARGS="$BIND_ARGS --bind ${TAILSCALE_IP}:${COORDINATOR_PORT}"
     fi
     
