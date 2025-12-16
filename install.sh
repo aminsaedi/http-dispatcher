@@ -427,8 +427,8 @@ Requires=docker.service
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=$INSTALL_DIR/monitoring
-ExecStart=/bin/bash -c 'cd $INSTALL_DIR/monitoring && ($DOCKER_COMPOSE_CMD -f docker-compose.monitoring.yml down 2>/dev/null || docker stop prometheus grafana node_exporter alertmanager 2>/dev/null || true) && ($DOCKER_COMPOSE_CMD -f docker-compose.monitoring.yml rm -f 2>/dev/null || docker rm -f prometheus grafana node_exporter alertmanager 2>/dev/null || true) && $DOCKER_COMPOSE_CMD -f docker-compose.monitoring.yml up -d'
-ExecStop=/bin/bash -c 'cd $INSTALL_DIR/monitoring && $DOCKER_COMPOSE_CMD -f docker-compose.monitoring.yml down'
+ExecStart=/bin/bash -c "cd \$INSTALL_DIR/monitoring && (\$DOCKER_COMPOSE_CMD -f docker-compose.monitoring.yml down 2>/dev/null || docker stop prometheus grafana node_exporter alertmanager 2>/dev/null || true) && (\$DOCKER_COMPOSE_CMD -f docker-compose.monitoring.yml rm -f 2>/dev/null || docker rm -f prometheus grafana node_exporter alertmanager 2>/dev/null || true) && \$DOCKER_COMPOSE_CMD -f docker-compose.monitoring.yml up -d"
+ExecStop=/bin/bash -c "cd \$INSTALL_DIR/monitoring && \$DOCKER_COMPOSE_CMD -f docker-compose.monitoring.yml down"
 StandardOutput=journal
 StandardError=journal
 
