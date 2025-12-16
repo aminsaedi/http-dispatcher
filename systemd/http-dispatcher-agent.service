@@ -1,0 +1,20 @@
+[Unit]
+Description=HTTP Dispatcher Agent
+After=network.target
+
+[Service]
+Type=simple
+User=http-dispatcher
+WorkingDirectory=/opt/http-dispatcher
+Environment="PATH=/opt/http-dispatcher/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="DISPATCHER_COORDINATOR_URL=http://localhost:8000"
+Environment="DISPATCHER_AGENT_ID=agent-1"
+ExecStart=/usr/bin/python3 /opt/http-dispatcher/bin/main.py --mode agent --coordinator-url %i --agent-id %i
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+

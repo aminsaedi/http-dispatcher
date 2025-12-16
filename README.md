@@ -15,13 +15,94 @@ A distributed HTTP request system with IPv6 support, featuring agent-based reque
 - **Request History**: Tracks all executed requests with metadata
 - **Agent Reconnection**: Automatic reconnection with exponential backoff when coordinator restarts
 
-## Installation
+## Quick Installation
+
+### 🚀 One-Liner Installation
+
+**Install as Coordinator:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/your-repo/http-dispatcher/main/install.sh | sudo bash -s -- coordinator
+```
+
+**Install as Agent (with Tailscale auto-detection):**
+```bash
+# If using Tailscale, coordinator is auto-detected!
+curl -fsSL https://raw.githubusercontent.com/your-repo/http-dispatcher/main/install.sh | sudo bash -s -- agent
+
+# Or specify coordinator manually
+curl -fsSL https://raw.githubusercontent.com/your-repo/http-dispatcher/main/install.sh | sudo bash -s -- agent --coordinator-url http://coordinator-hostname:8000
+```
+
+**Install from Local Source:**
+```bash
+# Clone or download the repository first
+git clone https://github.com/your-repo/http-dispatcher.git
+cd http-dispatcher
+
+# Run installation script
+sudo bash install.sh coordinator
+# or (with Tailscale auto-detection)
+sudo bash install.sh agent
+```
+
+### 🎯 Tailscale Integration
+
+If you're using **Tailscale** (recommended!), the installer automatically:
+- ✅ **Auto-detects coordinator** - No need to specify `--coordinator-url` for agents
+- ✅ **Binds to Tailscale IP** - Coordinator automatically accessible via Tailscale network
+- ✅ **Uses Tailscale hostnames** - Easy service discovery across your network
+- ✅ **Configures monitoring** - Prometheus automatically connects via Tailscale
+
+**Benefits:**
+- 🔒 **Secure by default** - All traffic encrypted via Tailscale
+- 🌐 **No port forwarding** - Everything works through Tailscale VPN
+- 📍 **Easy discovery** - Use hostnames instead of IPs
+- 🚀 **Simpler setup** - Just install and go!
+
+### What Gets Installed
+
+The installation script will:
+- ✅ Install Python dependencies automatically
+- ✅ Create systemd services for automatic startup
+- ✅ Set up monitoring stack (Prometheus + Grafana) for coordinator
+- ✅ Configure services to restart automatically
+- ✅ Create management commands for easy control
+- ✅ **Auto-detect and configure Tailscale** (if available)
+
+### Service Management
+
+After installation, use the `http-dispatcher` command to manage services:
+
+```bash
+# Check status
+http-dispatcher coordinator status
+http-dispatcher agent status
+http-dispatcher monitoring status
+
+# View logs
+http-dispatcher coordinator logs
+http-dispatcher agent logs
+
+# Control services
+http-dispatcher coordinator restart
+http-dispatcher agent stop
+http-dispatcher monitoring start
+```
+
+Or use standard systemd commands:
+```bash
+sudo systemctl status http-dispatcher-coordinator
+sudo systemctl restart http-dispatcher-agent
+sudo journalctl -u http-dispatcher-coordinator -f
+```
+
+## Manual Installation (Development)
+
+For development or manual setup:
 
 ```bash
 pip install -r requirements.txt
 ```
-
-## Usage
 
 ### Start the Coordinator
 
