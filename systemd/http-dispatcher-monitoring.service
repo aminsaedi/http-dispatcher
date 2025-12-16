@@ -1,0 +1,17 @@
+[Unit]
+Description=HTTP Dispatcher Monitoring Stack
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/http-dispatcher/monitoring
+ExecStart=/bin/bash -c "cd /opt/http-dispatcher/monitoring && docker compose -f docker-compose.monitoring.yml up -d || docker-compose -f docker-compose.monitoring.yml up -d"
+ExecStop=/bin/bash -c "cd /opt/http-dispatcher/monitoring && docker compose -f docker-compose.monitoring.yml down || docker-compose -f docker-compose.monitoring.yml down"
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+

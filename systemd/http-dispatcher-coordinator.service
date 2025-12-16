@@ -1,0 +1,18 @@
+[Unit]
+Description=HTTP Dispatcher Coordinator
+After=network.target
+
+[Service]
+Type=simple
+User=http-dispatcher
+WorkingDirectory=/opt/http-dispatcher
+Environment="PATH=/opt/http-dispatcher/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/usr/bin/python3 /opt/http-dispatcher/bin/main.py --mode coordinator --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+

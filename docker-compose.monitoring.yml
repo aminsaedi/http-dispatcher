@@ -6,10 +6,10 @@ services:
     image: prom/prometheus:v2.50.1
     container_name: prometheus
     ports:
-      - "100.117.91.127:9090:9090"
+      - "9090:9090"
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
-      - ./monitoring/alert-rules.yml:/etc/prometheus/alert-rules.yml
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./alert-rules.yml:/etc/prometheus/alert-rules.yml
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -18,8 +18,7 @@ services:
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--storage.tsdb.retention.time=15d'
       - '--web.enable-lifecycle'
-    networks:
-      - monitoring
+    network_mode: host
     restart: unless-stopped
 
   # Grafana for dashboards
@@ -27,17 +26,16 @@ services:
     image: grafana/grafana:10.4.0
     container_name: grafana
     ports:
-      - "100.117.91.127:3000:3000"
+      - "3000:3000"
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
-      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/http-dispatcher-overview.json
-    networks:
-      - monitoring
+    network_mode: host
     restart: unless-stopped
     depends_on:
       - prometheus
@@ -47,7 +45,7 @@ services:
     image: prom/node-exporter:v1.7.0
     container_name: node_exporter
     ports:
-      - "100.117.91.127:9100:9100"
+      - "9100:9100"
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
@@ -57,8 +55,7 @@ services:
       - '--path.rootfs=/rootfs'
       - '--path.sysfs=/host/sys'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
-    networks:
-      - monitoring
+    network_mode: host
     restart: unless-stopped
 
   # Alertmanager for alert handling
@@ -68,21 +65,16 @@ services:
     ports:
       - "9093:9093"
     volumes:
-      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml
       - alertmanager_data:/alertmanager
     command:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
       - '--storage.path=/alertmanager'
       - '--web.external-url=http://localhost:9093'
-    networks:
-      - monitoring
+    network_mode: host
     restart: unless-stopped
 
 volumes:
   prometheus_data:
   grafana_data:
   alertmanager_data:
-
-networks:
-  monitoring:
-    driver: bridge
