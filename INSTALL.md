@@ -6,21 +6,21 @@
 
 **Install as Coordinator (with monitoring):**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/your-repo/http-dispatcher/main/install.sh | sudo bash -s -- coordinator
+curl -fsSL https://raw.githubusercontent.com/aminsaedi/http-dispatcher/main/install.sh | sudo bash -s -- coordinator
 ```
 
 **Install as Agent:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/your-repo/http-dispatcher/main/install.sh | sudo bash -s -- agent --coordinator-url http://coordinator-ip:8000
+curl -fsSL https://raw.githubusercontent.com/aminsaedi/http-dispatcher/main/install.sh | sudo bash -s -- agent --coordinator-url http://coordinator-ip:8000
 ```
 
 **With custom options:**
 ```bash
 # Coordinator on custom port
-curl -fsSL https://raw.githubusercontent.com/your-repo/http-dispatcher/main/install.sh | sudo bash -s -- coordinator --port 9000
+curl -fsSL https://raw.githubusercontent.com/aminsaedi/http-dispatcher/main/install.sh | sudo bash -s -- coordinator --port 9000
 
 # Agent with custom ID
-curl -fsSL https://raw.githubusercontent.com/your-repo/http-dispatcher/main/install.sh | sudo bash -s -- agent --coordinator-url http://coordinator:8000 --agent-id my-agent-01
+curl -fsSL https://raw.githubusercontent.com/aminsaedi/http-dispatcher/main/install.sh | sudo bash -s -- agent --coordinator-url http://coordinator:8000 --agent-id my-agent-01
 ```
 
 ## Local Installation

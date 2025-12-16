@@ -2,7 +2,7 @@
 set -e
 
 # HTTP Dispatcher Installation Script
-# Usage: curl -fsSL https://raw.githubusercontent.com/your-repo/http-dispatcher/main/install.sh | bash -s -- [coordinator|agent] [options]
+# Usage: curl -fsSL https://raw.githubusercontent.com/aminsaedi/http-dispatcher/main/install.sh | bash -s -- [coordinator|agent] [options]
 
 # Colors for output
 RED='\033[0;31m'
@@ -53,8 +53,8 @@ while [[ $# -gt 0 ]]; do
             echo "HTTP Dispatcher Installation Script"
             echo ""
             echo "Usage:"
-            echo "  curl -fsSL https://raw.githubusercontent.com/your-repo/http-dispatcher/main/install.sh | bash -s -- coordinator"
-            echo "  curl -fsSL https://raw.githubusercontent.com/your-repo/http-dispatcher/main/install.sh | bash -s -- agent [--coordinator-url URL]"
+            echo "  curl -fsSL https://raw.githubusercontent.com/aminsaedi/http-dispatcher/main/install.sh | bash -s -- coordinator"
+            echo "  curl -fsSL https://raw.githubusercontent.com/aminsaedi/http-dispatcher/main/install.sh | bash -s -- agent [--coordinator-url URL]"
             echo ""
             echo "Options:"
             echo "  coordinator              Install as coordinator"
@@ -193,7 +193,7 @@ if [[ -f "main.py" ]] && [[ -d "src" ]]; then
 else
     echo -e "${RED}Error: Installation files not found in current directory${NC}"
     echo "Please run this script from the http-dispatcher project directory"
-    echo "Or use: curl -fsSL https://raw.githubusercontent.com/your-repo/http-dispatcher/main/install.sh | bash -s -- [mode]"
+    echo "Or use: curl -fsSL https://raw.githubusercontent.com/aminsaedi/http-dispatcher/main/install.sh | bash -s -- [mode]"
     exit 1
 fi
 

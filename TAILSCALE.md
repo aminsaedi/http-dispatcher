@@ -22,7 +22,7 @@ HTTP Dispatcher has built-in Tailscale support that makes installation and netwo
 
 2. **Install HTTP Dispatcher Coordinator:**
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/your-repo/http-dispatcher/main/install.sh | sudo bash -s -- coordinator
+   curl -fsSL https://raw.githubusercontent.com/aminsaedi/http-dispatcher/main/install.sh | sudo bash -s -- coordinator
    ```
 
    The installer will automatically:
@@ -40,7 +40,7 @@ HTTP Dispatcher has built-in Tailscale support that makes installation and netwo
 
 2. **Install HTTP Dispatcher Agent** (no coordinator URL needed!):
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/your-repo/http-dispatcher/main/install.sh | sudo bash -s -- agent
+   curl -fsSL https://raw.githubusercontent.com/aminsaedi/http-dispatcher/main/install.sh | sudo bash -s -- agent
    ```
 
    The installer will:

@@ -4,7 +4,7 @@
 
 ### Coordinator (Server)
 ```bash
-curl -fsSL https://raw.githubusercontent.com/your-repo/http-dispatcher/main/install.sh | sudo bash -s -- coordinator
+curl -fsSL https://raw.githubusercontent.com/aminsaedi/http-dispatcher/main/install.sh | sudo bash -s -- coordinator
 ```
 
 ### Agent (Client)
@@ -12,12 +12,12 @@ curl -fsSL https://raw.githubusercontent.com/your-repo/http-dispatcher/main/inst
 **With Tailscale (Recommended - Auto-detects coordinator!):**
 ```bash
 # Just run this - coordinator is auto-detected!
-curl -fsSL https://raw.githubusercontent.com/your-repo/http-dispatcher/main/install.sh | sudo bash -s -- agent
+curl -fsSL https://raw.githubusercontent.com/aminsaedi/http-dispatcher/main/install.sh | sudo bash -s -- agent
 ```
 
 **Without Tailscale:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/your-repo/http-dispatcher/main/install.sh | sudo bash -s -- agent --coordinator-url http://YOUR_COORDINATOR_IP:8000
+curl -fsSL https://raw.githubusercontent.com/aminsaedi/http-dispatcher/main/install.sh | sudo bash -s -- agent --coordinator-url http://YOUR_COORDINATOR_IP:8000
 ```
 
 ## 🎯 Tailscale Makes It Easy!

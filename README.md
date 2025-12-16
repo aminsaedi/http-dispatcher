@@ -21,22 +21,22 @@ A distributed HTTP request system with IPv6 support, featuring agent-based reque
 
 **Install as Coordinator:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/your-repo/http-dispatcher/main/install.sh | sudo bash -s -- coordinator
+curl -fsSL https://raw.githubusercontent.com/aminsaedi/http-dispatcher/main/install.sh | sudo bash -s -- coordinator
 ```
 
 **Install as Agent (with Tailscale auto-detection):**
 ```bash
 # If using Tailscale, coordinator is auto-detected!
-curl -fsSL https://raw.githubusercontent.com/your-repo/http-dispatcher/main/install.sh | sudo bash -s -- agent
+curl -fsSL https://raw.githubusercontent.com/aminsaedi/http-dispatcher/main/install.sh | sudo bash -s -- agent
 
 # Or specify coordinator manually
-curl -fsSL https://raw.githubusercontent.com/your-repo/http-dispatcher/main/install.sh | sudo bash -s -- agent --coordinator-url http://coordinator-hostname:8000
+curl -fsSL https://raw.githubusercontent.com/aminsaedi/http-dispatcher/main/install.sh | sudo bash -s -- agent --coordinator-url http://coordinator-hostname:8000
 ```
 
 **Install from Local Source:**
 ```bash
 # Clone or download the repository first
-git clone https://github.com/your-repo/http-dispatcher.git
+git clone https://github.com/aminsaedi/http-dispatcher.git
 cd http-dispatcher
 
 # Run installation script
